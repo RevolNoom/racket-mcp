@@ -1,0 +1,11 @@
+{
+  "eval_id": 2,
+  "eval_name": "python-null-validation",
+  "prompt": "Check the null-validation of user input in this Python function and suggest improvements.",
+  "sample_code": "def process_user_input(user_data):\n    if user_data is None:\n        return\n    # Process the user data",
+  "assertions": [
+    {"text": "Improve null validation pattern", "expected": true},
+    {"text": "Add clear documentation", "expected": true},
+    {"text": "Remove confusing comment if needed", "expected": false}
+  ]
+}

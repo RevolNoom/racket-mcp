@@ -1,0 +1,50 @@
+{
+  "skill_name": "coder",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review this C# method for early-return style and comment placement.",
+      "expected_output": "List of suggestions with line numbers and explanations.",
+      "sample_code": "public void ValidateInput(InputObject input)\n{\n  if (input != null) \n  {\n    // Perform validation logic\n  }\n}",
+      "assertions": [
+        {"text": "Method should use early return for null check", "expected": true},
+        {"text": "Comments must be on separate lines", "expected": true},
+        {"text": "Replace ForEach() with traditional for loop", "expected": false},
+        {"text": "Explain why traditional syntax is preferred", "expected": true}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Refactor this JavaScript array manipulation to use traditional for loop instead of forEach().",
+      "expected_output": "Refactored code snippet and rationale.",
+      "sample_code": "users.ForEach(user => { \n  user.user_id = Guid.NewGuid(); \n});",
+      "assertions": [
+        {"text": "Replace ForEach() with traditional for loop", "expected": true},
+        {"text": "Maintain same functionality", "expected": true},
+        {"text": "Explain performance benefits", "expected": true}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Check the null-validation of user input in this Python function and suggest improvements.",
+      "expected_output": "Suggested validation code and explanation.",
+      "sample_code": "def process_user_input(user_data):\n    if user_data is None:\n        return\n    # Process the user data",
+      "assertions": [
+        {"text": "Improve null validation pattern", "expected": true},
+        {"text": "Add clear documentation", "expected": true},
+        {"text": "Remove confusing comment if needed", "expected": false}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Review this class for documentation and property usage.",
+      "expected_output": "Documentation suggestions and property alternatives.",
+      "sample_code": "public class User\n{\n    public string Name { get; set; }\n    public int Age { get; set; }\n}",
+      "assertions": [
+        {"text": "Class should have documentation", "expected": true},
+        {"text": "Properties should be replaced with private variables", "expected": true},
+        {"text": "Add get/set methods", "expected": true}
+      ]
+    }
+  ]
+}

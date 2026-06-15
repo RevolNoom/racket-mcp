@@ -1,0 +1,11 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "Client-side legacy SSE transport (client/sse.ts) is unaddressed: the out-of-scope section justifies excluding legacy SSE only via the server-legacy package, but the current client package still ships sse.ts. Clarify whether client-side SSE is also excluded (and the interop consequence) or scope it in.",
+    "The TS Zod schema layer (types/schemas.ts and types/specTypeSchema.ts) has no explicit Racket analogue. 'Contracts replace Zod' is correct, but state explicitly which Racket module absorbs the runtime-validation schemas distinct from static types.ts, so the parity matrix has a home for schemas.ts.",
+    "Transport relocation is a real divergence from the strict 1:1 mirror: the vision places the Transport interface at mcp/transport/transport.rkt and groups all transports under a top-level transport/ collection, whereas TS keeps Transport in core/shared and transports inside client/server. Call this out as an intentional regrouping with rationale.",
+    "server/validators/{ajv,cfWorker}.ts and core/util/zodCompat.ts are implicitly covered by the single-provider and Zod-compat exclusion decisions but are not named; add one line mapping them to collapsed/intentionally-excluded parity-matrix rows.",
+    "Performance NFR remains slightly qualitative ('dominated by JSON parsing, not SDK bookkeeping') with no numeric target form; acceptable for a vision but worth tightening into a CI-gated overhead metric at architecture time."
+  ]
+}

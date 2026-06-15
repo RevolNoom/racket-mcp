@@ -1,0 +1,30 @@
+C# Method Review Results (Improved Skill):
+
+1. Early Return Violation (Line 3):
+   - Current: `if (input != null) { /* logic */ }`
+   - Issue: Missing early return for null check
+   - Fix: Add early return when input is null
+   - Improved code:
+     public void ValidateInput(InputObject input)
+     {
+         if (input == null)
+         {
+             return;
+         }
+         // Perform validation logic
+     }
+   - Why: Early return pattern reduces nesting and handles error cases first
+
+2. Comment Placement (Line 5):
+   - Current: `// Perform validation logic` (inside braces)
+   - Issue: Comment not on separate line per guidelines
+   - Fix: Move comment to its own line above the logic
+   - Why: Comments must be on separate lines for readability
+
+3. Documentation Missing:
+   - Missing function description
+   - Missing parameter description
+   - Missing example function call
+   - Why: All functions should have documentation per guidelines
+
+Overall: Method needs refactoring for early return pattern and documentation.

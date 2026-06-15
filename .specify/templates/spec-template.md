@@ -20,6 +20,19 @@
   - Demonstrated to users independently
 -->
 
+### Resilience & Error Testing (Mandatory for I/O/Transport/API tasks)
+
+<!--
+  ACTION REQUIRED: Identify failure modes.
+  - Test malformed input, unexpected EOF, and protocol violations.
+  - Verify the system recovers gracefully and maintains state.
+-->
+
+- **Failure Mode 1**: [Describe scenario, e.g., "Malformed JSON on stdin"]
+    - **Recovery Action**: [Expected behavior, e.g., "Discard line, return PARSE_ERROR, and continue reading"]
+- **Failure Mode 2**: [Describe scenario, e.g., "Unexpected connection closure"]
+    - **Recovery Action**: [Expected behavior]
+
 ### User Story 1 - [Brief Title] (Priority: P1)
 
 [Describe this user journey in plain language]
