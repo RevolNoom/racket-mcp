@@ -1,0 +1,6 @@
+[submodule "typescript-sdk"]
+	path = typescript-sdk
+	url = https://github.com/modelcontextprotocol/typescript-sdk
+[submodule ".claude"]
+	path = .claude
+	url = https://github.com/RevolNoom/rev-claude-setup.git
