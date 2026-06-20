@@ -1,0 +1,4 @@
+[
+  { "uri": "file:///t.txt", "mimeType": "text/plain", "text": "body", "_meta": { "k": 1 } },
+  { "uri": "file:///b.bin", "mimeType": "application/octet-stream", "blob": "YmluYXJ5" }
+]

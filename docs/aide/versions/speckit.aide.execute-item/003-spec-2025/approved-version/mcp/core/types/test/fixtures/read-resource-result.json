@@ -1,0 +1,7 @@
+{
+  "contents": [
+    { "uri": "file:///a.txt", "mimeType": "text/plain", "text": "alpha" },
+    { "uri": "file:///b.bin", "mimeType": "application/octet-stream", "blob": "YmluYXJ5" }
+  ],
+  "_meta": { "count": 2 }
+}

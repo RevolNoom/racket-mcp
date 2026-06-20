@@ -1,0 +1,40 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "MINOR (non-blocking): emit-task-fields takes an unused `meta` argument (dead param; _meta is emitted by the enclosing put)",
+    "MINOR (non-blocking): EmptyResult intentionally treated as ordinary result with no .strict() enforcement (spec-sanctioned deferred gap); add a code comment flagging it for item 005",
+    "NOTE: required-ness is contract-driven (h-req returns absent, enforced by /c) rather than raised at fetch site — consistent and tested"
+  ],
+  "raco_test": {
+    "command": "raco test mcp/core/types/",
+    "exit_code": 0,
+    "tests_passed": 459,
+    "baseline_001_002": 339,
+    "new_item_003": 120,
+    "note": "Verified myself from repo root; pinned check count = 120; bash_env stderr noise ignored"
+  },
+  "completeness": {
+    "method_literals": "31/31 (20 requests + 11 notifications) pinned via lit/c; matches TS grep exactly",
+    "result_types": "18/18 present",
+    "envelopes": "4 + inner jsonrpc-error + url-elicitation-required-error (-32042)",
+    "intersection_types": "all 3 present and flattened (get-task-result, cancel-task-result, task-status-notification-params)",
+    "aggregate_union_contracts": "all 7 present",
+    "totals": "114 structs, 135 /c contracts"
+  },
+  "strictness": {
+    "envelopes_strict": true,
+    "results_preserve_unknown": true,
+    "params_drop_unknown": true,
+    "parity_bug": false
+  },
+  "round_trip": "canonical jsexpr=? (unordered keys), self-checked; NOT byte-equality; absent omitted; Task.ttl required-nullable serializes 'null -> JSON null",
+  "union_arm_fixtures": "23 arms, each asserts correct struct predicate incl tool_use/tool_result",
+  "anti_vacuity": {
+    "fixture_corruption_test": "corrupting inputSchema->input_schema in fixture caused 3/120 failures (fixtures genuinely coupled)",
+    "field_map_corruption_test": "corrupting serializer serverInfo->server-info caused 3/120 failures including the fixture-INDEPENDENT Part-5 mapping test",
+    "fixture_key_honesty": "spot-checked camelCase keys against real .ts lines (protocolVersion/clientInfo/Task fields/_meta related-task key) — all match"
+  },
+  "progress_md": "row split: spec-2025-11-25.rkt -> done, spec-2026-07-28.rkt left at planned; siblings untouched",
+  "missing_types": []
+}

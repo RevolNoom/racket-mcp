@@ -1,0 +1,16 @@
+{
+  "method": "subscriptions/listen",
+  "params": {
+    "notifications": {
+      "toolsListChanged": true,
+      "promptsListChanged": false,
+      "resourcesListChanged": true,
+      "resourceSubscriptions": ["file:///a.txt", "file:///b.txt"]
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { "name": "demo-client", "version": "1.0.0" },
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  }
+}

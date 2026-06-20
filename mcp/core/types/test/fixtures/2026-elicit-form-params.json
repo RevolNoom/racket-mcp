@@ -1,0 +1,9 @@
+{
+  "mode": "form",
+  "message": "Enter details",
+  "requestedSchema": {
+    "type": "object",
+    "properties": { "name": { "type": "string" } },
+    "required": ["name"]
+  }
+}

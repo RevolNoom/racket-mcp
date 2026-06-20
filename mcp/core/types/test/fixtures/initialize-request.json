@@ -1,0 +1,16 @@
+{
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {
+      "roots": { "listChanged": true }
+    },
+    "clientInfo": {
+      "name": "example-client",
+      "title": "Example Client",
+      "version": "1.0.0"
+    },
+    "_meta": { "trace": "abc-123" },
+    "extraUnknownKey": "should-be-dropped-on-params"
+  }
+}

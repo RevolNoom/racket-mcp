@@ -1,0 +1,14 @@
+{
+  "overall_rating": 7,
+  "needs_revision": true,
+  "key_issues": [
+    "C1 (CRITICAL): §4 Group 4 mis-models sampling/elicitation params. Verified against delivered code: 2026 elicit-request-form-params is (mode message requested-schema) and elicit-request-url-params is (mode message elicitation-id url) — NO task, NO meta. So `meta` is 2025-ONLY for elicit params (not shared as the table implies), and these server->client params carry NO request-meta envelope. As written the implementer would give them a phantom request-meta field.",
+    "C2 (CRITICAL): The request-meta envelope applies ONLY to client request params (call-tool/read-resource/get-prompt/complete/list — verified call-tool-request-params/c 2026 ends in request-meta?). create-message and elicit params carry a plain (opt/c json-object?) meta, not the envelope. Spec must state per-primitive whether the facade meta field is facade-request-meta or a plain object.",
+    "C3 (CRITICAL): The 2025-only-field present/absent assertions the queue clause requires cannot be run as written — no list-roots-result fixture exists in EITHER revision and no create-message pair. Spec must explicitly enumerate the fixtures to hand-author (2025 list-roots-result with _meta + bare 2026 list-roots) and make the 2025-only-field absence assertions a HARD requirement, not 'add a pair if lacking', else the test vacuously skips them.",
+    "C4: Round-trip losslessness for the result `rest` field (present in both revs) is unspecified — no rule for whether opaque rest keys pass through on cross-revision denormalize, and no home-revision rest-survival assertion. Easiest field to silently drop (the 003 dropped-_meta failure mode).",
+    "C5: ElicitResult open question (line 218) is resolved in code — 2026 elicit-result is (action content meta result-type rest), so result-type is 2026-only; remove the hedge. Distinguish elicit-RESULT (meta/rest shared) from elicit-PARAMS (meta 2025-only) to avoid confusion.",
+    "S4: Method->facade dispatch must be revision-parameterized for methods present in both revisions (tools/call, roots/list, elicitation/create, sampling/createMessage, completion/complete) — one method has two parsers. Part 4 only tests single-revision methods; add a both-revisions dispatch test.",
+    "S5: Group-0 aliasing trap — pure aliasing of a 003 struct breaks the SAME-facade core claim because a 2026-built value fails the aliased predicate; spec should require both revisions be converted into the one chosen struct type.",
+    "Minor: 2025 tool field accessor is `tool-exec` not `tool-execution`; Group-6 line 302 has a garbled fragment mixing a shared primitive into the 2025-only list."
+  ]
+}

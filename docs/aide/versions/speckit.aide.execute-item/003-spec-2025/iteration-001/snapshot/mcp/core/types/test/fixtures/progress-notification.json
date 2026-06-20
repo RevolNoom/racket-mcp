@@ -1,0 +1,9 @@
+{
+  "method": "notifications/progress",
+  "params": {
+    "progressToken": "tok-7",
+    "progress": 42,
+    "total": 100,
+    "message": "halfway"
+  }
+}

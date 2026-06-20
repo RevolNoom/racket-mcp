@@ -1,0 +1,1 @@
+Item 005 implementation APPROVED by code-reviewer (8.5/10, needs_revision=false). Artifacts: mcp/core/types/types.rkt (1476 lines, 58 façade structs), types-test.rkt (95 checks). All tests green; no regressions. Part-6 count pinned to 58 post-review.

@@ -1,0 +1,11 @@
+{
+  "overall_rating": 8,
+  "needs_revision": false,
+  "key_issues": [
+    "Constructor argument-contract violations are never tested: Decision recommends contract-out on make-* so a bad code/message is caught, but no acceptance criterion or test exercises a violation (add check-exn for non-int code and non-string message), nor a positive assertion that the custom opt/c admits `absent` as data.",
+    "Falsy-data carriage matrix is thin: prose names #f/'null/0/\"\" as must-be-present but only 'null is asserted; a truthiness-based presence check would silently drop #f/0/\"\". Add one wire-hash assertion per falsy value, plus an empty hasheq and a nested object/array to prove data is copied by reference, not inspected/flattened.",
+    "Encoder inheritance path is under-tested for data: only the base make-mcp-error carries non-absent data through encode; add a protocol-error and auth-error encode with structured data (e.g. UNSUPPORTED-PROTOCOL-VERSION + {supported:[...]}) to prove the single (mcp-error? e) branch handles all three subtypes identically and to double as a 007-seam assertion.",
+    "Decision notes needed (not tests): state that exn-message is total over exn? so the else branch cannot emit a non-string message (would violate jsonrpc-error/c); clarify exn:break maps to -32603 only if it reaches the encoder and S3 is expected to let breaks propagate (the row documents totality, not a recommendation to swallow breaks); clarify the fallback edge-test always passes an exn (a non-exn input is a contract violation, not -32603).",
+    "Minor: #:marks is in the public constructor signature but untested — either add one assertion that continuation-marks is populated or drop #:marks from the public surface (007 does not need it); and pre-flight checklist omits test -f mcp/core/types/guards.rkt though the test imports is-jsonrpc-error? from guards."
+  ]
+}

@@ -1,0 +1,774 @@
+# Work Item 003: Spec types — revision 2025-11-25
+
+> **Queue:** `docs/aide/queue/queue-001.md` — Item 003
+> **Stage:** S1 (Foundation: types, constants, guards, errors — L0 part 1)
+> **Module:** M1 (Types) — `spec-2025-11-25` sub-unit (versioned-spec layer)
+> **Source vision:** `docs/aide/vision.md` §4.1 (versioned-spec → normalization façade)
+> **Source roadmap:** `docs/aide/roadmap.md` Stage S1 → Deliverables line 81
+>   (`mcp/core/types/spec-2025-11-25.rkt` — per-revision structs + contracts for every
+>   request, response, notification, and error type) and line 86 (round-trip discipline).
+> **Source architecture:** `docs/aide/architecture.md` line 72 (Versioned-spec modules),
+>   **N1** line 326 (normalized-superset façade), §1.3 line 50 (public/internal boundary).
+> **Reference impl (authoritative):** MCP TypeScript SDK v2 at `typescript-sdk/` —
+>   `packages/core/src/types/spec.types.2025-11-25.ts` (2560 lines; generated, frozen) and
+>   `packages/core/src/types/schemas.ts` (the live Zod shapes).
+> **Status:** 📋 Planned (see Completion Reminder)
+
+---
+
+## Description
+
+Implement `mcp/core/types/spec-2025-11-25.rkt`, a **pure-data** Racket module mirroring the
+`2025-11-25` MCP revision as defined in
+`typescript-sdk/packages/core/src/types/spec.types.2025-11-25.ts`. It provides a Racket
+**struct** + a **flat contract** (`racket/contract`) for **every** request, notification,
+result/response, error, and the supporting payload types of that revision, plus
+`read-json → struct → write-json` (de)serialization that round-trips a TS-SDK-shaped JSON
+message back to byte-equivalent JSON.
+
+This module sits one level above `constants.rkt` (item 001) and `guards.rkt` (item 002) in
+the M1 type layer. The guards classify a *generic* JSON-RPC envelope; this module adds the
+**MCP-method-specific** payloads (`initialize`, `tools/call`, `resources/read`, …) as typed
+structs. It is consumed downstream by **item 004** (the sibling `2026-07-28` revision —
+designed to be structurally parallel so the two can be diffed) and **item 005** (the **N1
+normalized-superset façade** in `types.rkt`, which will UNION 003 + 004 into one
+version-agnostic shape). **Design constraint (from N1, architecture line 326):** 003 must
+expose a clean, enumerable, per-primitive surface so 005 can union it field-by-field with
+004's parallel primitives — see *Decisions & Trade-offs → N1-readiness*.
+
+This is a **large** module (≈ 70 named types). The spec below **enumerates every one** in a
+concrete inventory table (§Type inventory). The implementer MUST NOT "mirror the file" by
+eyeballing it — each row is the contract. The types are grouped by category
+(JSON-RPC envelope, common, lifecycle/initialize, ping, progress/cancellation,
+pagination, resources, prompts, tools, tasks, logging, sampling, autocomplete, roots,
+elicitation, content blocks, model preferences) to keep the module navigable, but **all are
+required**.
+
+### Representation conventions (inherited from item 002 / `read-json`)
+
+These are the **wire** conventions every (de)serializer in this module must obey; they are
+already established by `guards.rkt` and `constants.rkt` and are non-negotiable for parity:
+
+- A JSON **object** is the `read-json` shape: an **immutable `hasheq` with symbol keys**
+  (`json-object?` from guards — re-implement the same predicate internally; do not depend on
+  guards' un-provided helper).
+- JSON **null** is the symbol `'null`. JSON arrays are Racket lists. JSON strings/numbers/
+  booleans are Racket strings / numbers / `#t`/`#f`.
+- An **absent optional field** is NOT `'null`. The struct field carries a Racket sentinel
+  (recommend the symbol `'absent`, exported as a binding `MISSING`/`absent` so 005 can use
+  the same sentinel) — and the serializer **omits the key entirely** (it must NOT emit
+  `"key": null`). Conversely a present `'null` value (rare here; see `Task.ttl` which is
+  `number | null`) is serialized as JSON `null`. This absent-vs-null distinction is the
+  single most parity-sensitive serialization rule and is called out per-field in the
+  inventory where `| null` appears.
+- `JSONRPC-VERSION` comes from `constants.rkt`; the error `code` constants
+  (`PARSE-ERROR` … `URL-ELICITATION-REQUIRED`) come from `constants.rkt`.
+- **Strictness:** the JSON-RPC *envelope* schemas are `.strict()` (no extra top-level keys —
+  schemas.ts:147,157,168,192), exactly as item 002 enforces. **Payload/result/params
+  objects are LOOSE** (`z.looseObject` / `BaseRequestParamsSchema.loose()` — schemas.ts:102,
+  118): they carry `_meta` and arbitrary extra keys that MUST be **preserved verbatim**
+  through the round-trip (see *`_meta` and additionalProperties passthrough* below). This is
+  the inverse of a naive "drop unknown keys" struct mapping and is the second most
+  parity-sensitive rule.
+
+### `_meta` and additionalProperties passthrough (parity-critical)
+
+Almost every MCP object permits a `_meta` object and (for results/params) arbitrary extra
+keys (`ResultSchema = z.looseObject`, `BaseRequestParamsSchema.loose()`,
+`GetTaskPayloadResult` is fully open, schemas.ts:118,102,753). A struct-per-type mapping that
+only models the *named* fields would **silently drop** `_meta` and unknown keys on
+round-trip, breaking byte-parity. **Decision (bake into the spec):** every struct whose TS
+type extends `Result`, `RequestParams`, `NotificationParams`, or is a `looseObject` carries a
+dedicated **`rest`** field (an immutable `hasheq` of the leftover keys, including `_meta`).
+Deserialization splits known keys → struct fields and unknown keys → `rest`; serialization
+merges `rest` back in. This makes the round-trip lossless without enumerating `_meta`'s open
+contents. The inventory marks each such type with **(loose: has `rest`)**.
+
+---
+
+## Type inventory (the implementation contract — enumerate ALL)
+
+Read from `spec.types.2025-11-25.ts` on 2026-06-17. Cited line ranges are in that file
+unless prefixed `schemas.ts:`. **Naming:** Racket struct names are kebab-case of the TS
+interface; predicates are `name?` (auto-generated by `struct`); flat contracts are
+`name/c`. Field names are kebab-case of the TS field (e.g. `protocolVersion` →
+`protocol-version`); the (de)serializer maps Racket kebab-case ↔ JSON camelCase symbol keys
+via an explicit per-struct field table (NOT an automatic transform — `inputSchema`,
+`uriTemplate`, `requestId` etc. must map exactly).
+
+**Counts (verify at implementation):**
+**16 client→server requests + 8 server→client requests** (3 shared: `ping`,
+`tasks/get`/`tasks/result`/`tasks/list`/`tasks/cancel`) = **18 distinct request structs**;
+**11 notifications**; **~17 result types**; **1 error envelope + 1 specialized error**;
+**~22 supporting/common/content/payload types**. **Total ≈ 70 named structs.** The exact
+totals the test must report are in §Expected Outcomes.
+
+### A. JSON-RPC envelopes (4) — schemas.ts:141–192
+
+These mirror item 002's guards but as **constructible/serializable structs** (guards only
+*classify*). The struct envelope wraps a typed payload; the contract enforces the
+`.strict()` top-level key set.
+
+| TS type (line) | Racket struct | Fields | Contract notes |
+|---|---|---|---|
+| `JSONRPCRequest` (137) | `jsonrpc-request` | `id` (string\|exact-int), `method` (string), `params` (object\|absent) | id required; strict envelope |
+| `JSONRPCNotification` (147) | `jsonrpc-notification` | `method` (string), `params` (object\|absent) | NO id; strict |
+| `JSONRPCResultResponse` (156) | `jsonrpc-result-response` | `id` (string\|int), `result` (object, loose) | strict envelope |
+| `JSONRPCErrorResponse` (167) | `jsonrpc-error-response` | `id` (string\|int\|absent), `error` (`jsonrpc-error`) | id OPTIONAL; strict |
+
+> The generic envelopes carry the payload as an already-parsed object/struct. The
+> method-specific request/result structs (sections C–P) are the **typed `params` / `result`
+> bodies**; an envelope + a typed body compose a full message. Provide a thin pairing helper
+> (e.g. `(request->jsonrpc method id params-struct)`) so item 009's demo and item 005 can
+> build whole messages, but the per-method structs themselves are the bulk of this item.
+
+### B. Common / shared types — lines 99–171, 533–573, 1697–1727
+
+| TS type (line) | Racket struct | Fields (TS optionality) | Notes |
+|---|---|---|---|
+| `Error` (110) | `jsonrpc-error` | `code` (exact-int), `message` (string), `data` (any\|absent) | inner object NOT strict |
+| `Result` (99) | `result` | `meta` (object\|absent) + **(loose: `rest`)** | base for all results |
+| `EmptyResult` (212) | alias = `result` with no extra named fields | (loose: `rest`) | schemas.ts:207 `ResultSchema.strict()` — see note |
+| `BaseMetadata` (533) | `base-metadata` | `name` (string), `title` (string\|absent) | mixed into many |
+| `Implementation` (555) | `implementation` | `name`, `title?`, `version` (string), `description?`, `website-url?`, `icons?` (list of `icon`) | extends BaseMetadata+Icons |
+| `Icon` (469) | `icon` | `src` (string), `mime-type?`, `sizes?` (list string), `theme?` (`"light"`\|`"dark"`) | |
+| `Annotations` (1697) | `annotations` | `audience?` (list of role), `priority?` (number), `last-modified?` (string) | |
+| `Role` (1027) | contract `role/c` = `(or/c "user" "assistant")` | — | string enum, no struct |
+| `Cursor` (36) | `cursor/c` = `string?` | — | opaque |
+| `ProgressToken` (29) | `progress-token/c` = `(or/c string? exact-integer?)` | — | |
+| `RequestId` (130) | `request-id/c` = `(or/c string? exact-integer?)` | — | reuse guards' rule |
+
+> **`EmptyResult` nuance:** schemas.ts:207 makes `EmptyResultSchema = ResultSchema.strict()`
+> — i.e. an empty result is the ONLY result that is strict (no extra keys beyond `_meta`).
+> Model it as `result` but its contract for serialization of a *known-empty* result may
+> reject extra keys; pragmatically, treat `EmptyResult` as `result` and document the strict
+> nuance — full enforcement is optional for S1 (note it in Decisions).
+
+### C. Lifecycle / initialize — lines 254–462
+
+| TS type (line) | Racket struct | Fields | Notes |
+|---|---|---|---|
+| `InitializeRequestParams` (260) | `initialize-request-params` | `protocol-version` (string), `capabilities` (`client-capabilities`), `client-info` (`implementation`), `meta?` + **(loose)** | |
+| `InitializeRequest` (274) | `initialize-request` | method=`"initialize"`, `params` (above) | |
+| `InitializeResult` (284) | `initialize-result` | `protocol-version`, `capabilities` (`server-capabilities`), `server-info` (`implementation`), `instructions?`, `meta?` + **(loose)** | |
+| `InitializedNotification` (305) | `initialized-notification` | method=`"notifications/initialized"`, `params?` | |
+| `ClientCapabilities` (315) | `client-capabilities` | `experimental?` (object), `roots?` (`{list-changed?}`), `sampling?` (`{context? tools?}`), `elicitation?` (`{form? url?}`), `tasks?` (nested, see source 351–383) | nested optional sub-objects; model nested as objects or sub-structs (see Decisions) |
+| `ServerCapabilities` (391) | `server-capabilities` | `experimental?`, `logging?` (object), `completions?` (object), `prompts?` (`{list-changed?}`), `resources?` (`{subscribe? list-changed?}`), `tools?` (`{list-changed?}`), `tasks?` (nested 438–461) | |
+
+### D. Ping — line 581
+
+| TS type | Racket struct | Fields |
+|---|---|---|
+| `PingRequest` (581) | `ping-request` | method=`"ping"`, `params?` (`request-params`) |
+
+### E. Progress / cancellation notifications — lines 220–252, 593–624
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `CancelledNotificationParams` (220) | `cancelled-notification-params` | `request-id?` (request-id), `reason?` (string), `meta?` (loose) |
+| `CancelledNotification` (249) | `cancelled-notification` | method=`"notifications/cancelled"`, `params` |
+| `ProgressNotificationParams` (593) | `progress-notification-params` | `progress-token` (progress-token), `progress` (number), `total?` (number), `message?` (string), `meta?` (loose) |
+| `ProgressNotification` (621) | `progress-notification` | method=`"notifications/progress"`, `params` |
+
+### F. Pagination (internal bases) — lines 632–652
+
+| TS type (line) | Racket struct | Fields | Notes |
+|---|---|---|---|
+| `PaginatedRequestParams` (632) | `paginated-request-params` | `cursor?` (cursor), `meta?` (loose) | base for list requests |
+| `PaginatedResult` (646) | `paginated-result` | `next-cursor?` (cursor), `meta?` (loose) | base for list results |
+
+> Model the list requests/results below as their own structs that *include* the cursor /
+> next-cursor field directly (Racket has no interface inheritance; flatten the base fields).
+
+### G. Resources — lines 654–924
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `ListResourcesRequest` (660) | `list-resources-request` | method=`"resources/list"`, `params?` (paginated: `cursor?`) |
+| `ListResourcesResult` (669) | `list-resources-result` | `resources` (list of `resource`), `next-cursor?`, (loose) |
+| `ListResourceTemplatesRequest` (678) | `list-resource-templates-request` | method=`"resources/templates/list"`, `params?` |
+| `ListResourceTemplatesResult` (687) | `list-resource-templates-result` | `resource-templates` (list of `resource-template`), `next-cursor?` |
+| `ReadResourceRequestParams` (711) | `read-resource-request-params` | `uri` (string), `meta?` (loose) |
+| `ReadResourceRequest` (718) | `read-resource-request` | method=`"resources/read"`, `params` |
+| `ReadResourceResult` (728) | `read-resource-result` | `contents` (list of `text-resource-contents`\|`blob-resource-contents`) |
+| `SubscribeRequestParams` (748) | `subscribe-request-params` | `uri`, `meta?` |
+| `SubscribeRequest` (755) | `subscribe-request` | method=`"resources/subscribe"`, `params` |
+| `UnsubscribeRequestParams` (766) | `unsubscribe-request-params` | `uri`, `meta?` |
+| `UnsubscribeRequest` (773) | `unsubscribe-request` | method=`"resources/unsubscribe"`, `params` |
+| `ResourceUpdatedNotificationParams` (783) | `resource-updated-notification-params` | `uri`, `meta?` |
+| `ResourceUpdatedNotification` (797) | `resource-updated-notification` | method=`"notifications/resources/updated"`, `params` |
+| `ResourceListChangedNotification` (737) | `resource-list-changed-notification` | method=`"notifications/resources/list_changed"`, `params?` |
+| `Resource` (807) | `resource` | `name`, `title?`, `uri`, `description?`, `mime-type?`, `annotations?`, `size?` (number), `icons?`, `meta?` (loose) |
+| `ResourceTemplate` (850) | `resource-template` | `name`, `title?`, `uri-template`, `description?`, `mime-type?`, `annotations?`, `icons?`, `meta?` |
+| `ResourceContents` (886) | `resource-contents` | `uri`, `mime-type?`, `meta?` — base |
+| `TextResourceContents` (907) | `text-resource-contents` | + `text` (string) |
+| `BlobResourceContents` (917) | `blob-resource-contents` | + `blob` (string) |
+
+### H. Prompts — lines 926–1083
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `ListPromptsRequest` (932) | `list-prompts-request` | method=`"prompts/list"`, `params?` |
+| `ListPromptsResult` (941) | `list-prompts-result` | `prompts` (list of `prompt`), `next-cursor?` |
+| `GetPromptRequestParams` (950) | `get-prompt-request-params` | `name` (string), `arguments?` (object string→string), `meta?` |
+| `GetPromptRequest` (966) | `get-prompt-request` | method=`"prompts/get"`, `params` |
+| `GetPromptResult` (976) | `get-prompt-result` | `description?`, `messages` (list of `prompt-message`), (loose) |
+| `Prompt` (989) | `prompt` | `name`, `title?`, `description?`, `arguments?` (list of `prompt-argument`), `icons?`, `meta?` |
+| `PromptArgument` (1011) | `prompt-argument` | `name`, `title?`, `description?`, `required?` (bool) |
+| `PromptMessage` (1037) | `prompt-message` | `role` (role/c), `content` (`content-block`) |
+| `PromptListChangedNotification` (1080) | `prompt-list-changed-notification` | method=`"notifications/prompts/list_changed"`, `params?` |
+
+### I. Tools — lines 1085–1302
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `ListToolsRequest` (1091) | `list-tools-request` | method=`"tools/list"`, `params?` |
+| `ListToolsResult` (1100) | `list-tools-result` | `tools` (list of `tool`), `next-cursor?` |
+| `CallToolRequestParams` (1142) | `call-tool-request-params` | `name` (string), `arguments?` (object), `task?` (`task-metadata`), `meta?` (loose) |
+| `CallToolRequest` (1158) | `call-tool-request` | method=`"tools/call"`, `params` |
+| `CallToolResult` (1109) | `call-tool-result` | `content` (list of `content-block`), `structured-content?` (object), `is-error?` (bool), `meta?` (loose) |
+| `Tool` (1254) | `tool` | `name`, `title?`, `description?`, `input-schema` (`{$schema? type:"object" properties? required?}`), `execution?` (`tool-execution`), `output-schema?`, `annotations?` (`tool-annotations`), `icons?`, `meta?` |
+| `ToolAnnotations` (1185) | `tool-annotations` | `title?`, `read-only-hint?`, `destructive-hint?`, `idempotent-hint?`, `open-world-hint?` (all bool) |
+| `ToolExecution` (1234) | `tool-execution` | `task-support?` (`"forbidden"`\|`"optional"`\|`"required"`) |
+| `ToolListChangedNotification` (1168) | `tool-list-changed-notification` | method=`"notifications/tools/list_changed"`, `params?` |
+
+> `Tool.inputSchema`/`outputSchema` are JSON-Schema fragments — model as an object struct
+> with `$schema?`, `type` (must equal `"object"`), `properties?` (object), `required?` (list
+> string). Map the `$schema` JSON key to a Racket field `schema-uri` (or keep it in `rest`)
+> — `$` is not a kebab-case identifier; document the chosen mapping.
+
+### J. Tasks — lines 1304–1503
+
+| TS type (line) | Racket struct | Fields | Notes |
+|---|---|---|---|
+| `TaskStatus` (1311) | `task-status/c` = `(or/c "working" "input_required" "completed" "failed" "cancelled")` | — | string enum |
+| `TaskMetadata` (1324) | `task-metadata` | `ttl?` (number) | request-side `task` field |
+| `RelatedTaskMetadata` (1337) | `related-task-metadata` | `task-id` (string) | rides inside `_meta` |
+| `Task` (1349) | `task` | `task-id`, `status` (task-status/c), `status-message?`, `created-at` (string), `last-updated-at` (string), `ttl` (number **\| `'null`** — REQUIRED, nullable), `poll-interval?` (number) | **`ttl` is `number\|null` REQUIRED** — present, may be `'null`. The only `\|null` field; serialize `'null` → JSON null |
+| `CreateTaskResult` (1396) | `create-task-result` | `task` (`task`), `meta?` (loose) | |
+| `GetTaskRequest` (1405) | `get-task-request` | method=`"tasks/get"`, `params` (`{task-id}`) | |
+| `GetTaskResult` (1420) | `get-task-result` | `Result & Task` — all `task` fields + `meta?` + (loose) | intersection |
+| `GetTaskPayloadRequest` (1427) | `get-task-payload-request` | method=`"tasks/result"`, `params` (`{task-id}`) | |
+| `GetTaskPayloadResult` (1444) | `get-task-payload-result` | **fully open** — only `meta?` + (loose: `rest` holds the wrapped result) | schemas.ts:753 `ResultSchema.loose()` |
+| `CancelTaskRequest` (1453) | `cancel-task-request` | method=`"tasks/cancel"`, `params` (`{task-id}`) | |
+| `CancelTaskResult` (1468) | `cancel-task-result` | `Result & Task` (same shape as `get-task-result`) | |
+| `ListTasksRequest` (1475) | `list-tasks-request` | method=`"tasks/list"`, `params?` (paginated) | |
+| `ListTasksResult` (1484) | `list-tasks-result` | `tasks` (list of `task`), `next-cursor?` | |
+| `TaskStatusNotificationParams` (1493) | `task-status-notification-params` | `NotificationParams & Task` — all `task` fields + `meta?` | |
+| `TaskStatusNotification` (1500) | `task-status-notification` | method=`"notifications/tasks/status"`, `params` | |
+
+### K. Logging — lines 1505–1567
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `LoggingLevel` (1567) | `logging-level/c` = `(or/c "debug" "info" "notice" "warning" "error" "critical" "alert" "emergency")` | — |
+| `SetLevelRequestParams` (1512) | `set-level-request-params` | `level` (logging-level/c), `meta?` |
+| `SetLevelRequest` (1524) | `set-level-request` | method=`"logging/setLevel"`, `params` |
+| `LoggingMessageNotificationParams` (1534) | `logging-message-notification-params` | `level` (logging-level/c), `logger?` (string), `data` (any JSON — REQUIRED), `meta?` |
+| `LoggingMessageNotification` (1554) | `logging-message-notification` | method=`"notifications/message"`, `params` |
+
+### L. Sampling — lines 1569–1983
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `CreateMessageRequestParams` (1575) | `create-message-request-params` | `messages` (list `sampling-message`), `model-preferences?`, `system-prompt?`, `include-context?` (`"none"`\|`"thisServer"`\|`"allServers"`), `temperature?` (number), `max-tokens` (number REQUIRED), `stop-sequences?` (list string), `metadata?` (object), `tools?` (list `tool`), `tool-choice?` (`tool-choice`), `task?` (`task-metadata`), `meta?` |
+| `CreateMessageRequest` (1641) | `create-message-request` | method=`"sampling/createMessage"`, `params` |
+| `CreateMessageResult` (1653) | `create-message-result` | `Result & SamplingMessage` + `model` (string), `stop-reason?` (string, open enum), `meta?`, (loose) |
+| `ToolChoice` (1626) | `tool-choice` | `mode?` (`"auto"`\|`"required"`\|`"none"`) |
+| `SamplingMessage` (1678) | `sampling-message` | `role`, `content` (`sampling-message-content-block` OR list of), `meta?` |
+| `ModelPreferences` (1916) | `model-preferences` | `hints?` (list `model-hint`), `cost-priority?`, `speed-priority?`, `intelligence-priority?` (numbers) |
+| `ModelHint` (1970) | `model-hint` | `name?` (string) |
+
+### M. Content blocks — lines 1690, 1732–1899
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `ContentBlock` (1732) | `content-block/c` = `(or/c text-content? image-content? audio-content? resource-link? embedded-resource?)` | union contract |
+| `SamplingMessageContentBlock` (1690) | `sampling-message-content-block/c` = `(or/c text-content? image-content? audio-content? tool-use-content? tool-result-content?)` | union |
+| `TextContent` (1739) | `text-content` | type=`"text"`, `text` (string), `annotations?`, `meta?` |
+| `ImageContent` (1763) | `image-content` | type=`"image"`, `data` (string), `mime-type` (string), `annotations?`, `meta?` |
+| `AudioContent` (1794) | `audio-content` | type=`"audio"`, `data`, `mime-type`, `annotations?`, `meta?` |
+| `ResourceLink` (1049) | `resource-link` | `resource` fields + type=`"resource_link"` |
+| `EmbeddedResource` (1061) | `embedded-resource` | type=`"resource"`, `resource` (text\|blob contents), `annotations?`, `meta?` |
+| `ToolUseContent` (1825) | `tool-use-content` | type=`"tool_use"`, `id` (string), `name`, `input` (object), `meta?` |
+| `ToolResultContent` (1859) | `tool-result-content` | type=`"tool_result"`, `tool-use-id` (string), `content` (list `content-block`), `structured-content?`, `is-error?`, `meta?` |
+
+> The `type` discriminator is a **literal string field**; the contract must pin it
+> (`(=/c "text")` etc. via `equal?`). Deserialization dispatches on the `type` key to choose
+> the struct; the union contracts (`content-block/c`) drive this.
+
+### N. Autocomplete / completion — lines 1985–2072
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `CompleteRequestParams` (1991) | `complete-request-params` | `ref` (`prompt-reference`\|`resource-template-reference`), `argument` (`{name value}`), `context?` (`{arguments?}`), `meta?` |
+| `CompleteRequest` (2023) | `complete-request` | method=`"completion/complete"`, `params` |
+| `CompleteResult` (2033) | `complete-result` | `completion` (`{values (list string), total?, has-more?}`), `meta?` |
+| `ResourceTemplateReference` (2055) | `resource-template-reference` | type=`"ref/resource"`, `uri` (string) |
+| `PromptReference` (2070) | `prompt-reference` | type=`"ref/prompt"`, `name`, `title?` |
+
+### O. Roots — lines 2074–2139
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `ListRootsRequest` (2086) | `list-roots-request` | method=`"roots/list"`, `params?` (`request-params`) |
+| `ListRootsResult` (2098) | `list-roots-result` | `roots` (list `root`), `meta?` |
+| `Root` (2107) | `root` | `uri` (string), `name?`, `meta?` |
+| `RootsListChangedNotification` (2136) | `roots-list-changed-notification` | method=`"notifications/roots/list_changed"`, `params?` |
+
+### P. Elicitation — lines 2141–2478 + URL error (191–204)
+
+| TS type (line) | Racket struct | Fields |
+|---|---|---|
+| `ElicitRequestFormParams` (2146) | `elicit-request-form-params` | `mode?`=`"form"`, `message` (string), `requested-schema` (`{$schema? type:"object" properties (string→primitive-schema) required?}`), `task?`, `meta?` |
+| `ElicitRequestURLParams` (2176) | `elicit-request-url-params` | `mode`=`"url"` (REQUIRED), `message`, `elicitation-id` (string), `url` (string), `task?`, `meta?` |
+| `ElicitRequestParams` (2206) | `elicit-request-params/c` = `(or/c elicit-request-form-params? elicit-request-url-params?)` | discriminate on `mode` |
+| `ElicitRequest` (2213) | `elicit-request` | method=`"elicitation/create"`, `params` |
+| `ElicitResult` (2448) | `elicit-result` | `action` (`"accept"`\|`"decline"`\|`"cancel"`), `content?` (object string→string\|number\|bool\|list), `meta?` |
+| `ElicitationCompleteNotification` (2470) | `elicitation-complete-notification` | method=`"notifications/elicitation/complete"`, `params` (`{elicitation-id}`) |
+| `PrimitiveSchemaDefinition` (2224) | `primitive-schema-definition/c` = union of the 4 below | |
+| `StringSchema` (2229) | `string-schema` | type=`"string"`, `title?`, `description?`, `min-length?`, `max-length?`, `format?` (`"email"\|"uri"\|"date"\|"date-time"`), `default?` |
+| `NumberSchema` (2242) | `number-schema` | type=`"number"\|"integer"`, `title?`, `description?`, `minimum?`, `maximum?`, `default?` |
+| `BooleanSchema` (2254) | `boolean-schema` | type=`"boolean"`, `title?`, `description?`, `default?` (bool) |
+| `EnumSchema` (2441) | `enum-schema/c` = `(or/c untitled-single-select... titled-single-select... untitled-multi-select... titled-multi-select... legacy-titled-enum...)` | |
+| `UntitledSingleSelectEnumSchema` (2266) | `untitled-single-select-enum-schema` | type=`"string"`, `title?`, `description?`, `enum` (list string), `default?` |
+| `TitledSingleSelectEnumSchema` (2291) | `titled-single-select-enum-schema` | type=`"string"`, `title?`, `description?`, `one-of` (list `{const title}`), `default?` |
+| `UntitledMultiSelectEnumSchema` (2331) | `untitled-multi-select-enum-schema` | type=`"array"`, `title?`, `description?`, `min-items?`, `max-items?`, `items` (`{type:"string" enum}`), `default?` |
+| `TitledMultiSelectEnumSchema` (2370) | `titled-multi-select-enum-schema` | type=`"array"`, …, `items` (`{any-of (list {const title})}`), `default?` |
+| `LegacyTitledEnumSchema` (2424) | `legacy-titled-enum-schema` | type=`"string"`, `title?`, `description?`, `enum` (list string), `enum-names?` (list string), `default?` — deprecated but in-revision |
+
+### Q. Specialized error + message union aggregates — lines 191–204, 2480–2559
+
+| TS type (line) | Racket binding | Notes |
+|---|---|---|
+| `URLElicitationRequiredError` (196) | `url-elicitation-required-error` | `jsonrpc-error-response` whose `error.code` = `URL-ELICITATION-REQUIRED` (`-32042`, constants.rkt) and `error.data.elicitations` = list of `elicit-request-url-params`. Provide a constructor + predicate. |
+| `ClientRequest` (2482) | `client-request/c` | union contract over the 16 client request structs |
+| `ClientNotification` (2502) | `client-notification/c` | union over 5 |
+| `ClientResult` (2510) | `client-result/c` | union over 8 |
+| `ServerRequest` (2522) | `server-request/c` | union over 8 |
+| `ServerNotification` (2533) | `server-notification/c` | union over 9 |
+| `ServerResult` (2545) | `server-result/c` | union over 13 |
+| `JSONRPCMessage` (17) | `jsonrpc-message/c` | request \| notification \| response |
+
+> The aggregate union contracts (R) are **provided** so item 005's façade and the future
+> protocol engine can contract a value as "any client request" etc. They reference the
+> per-method structs above; list members exactly per the source `|`-unions (lines 2482–2559).
+
+---
+
+## Acceptance criteria
+
+- [ ] `mcp/core/types/spec-2025-11-25.rkt` exists as `#lang racket/base` with
+      `(require racket/contract)` and an explicit curated `(provide …)` (no
+      `(all-defined-out)`; no `(contract-out)`-free raw exports of the constructors that need
+      contracts — see Decisions on whether to `contract-out` or provide raw + `…/c`).
+- [ ] **Every** type in §Type inventory (A–Q) is implemented: a transparent `struct` per
+      object type, a flat contract (`…/c`) per type (including the string-enum and union
+      contracts), with kebab-case field names mapped to the exact JSON camelCase keys.
+- [ ] Structs are `#:transparent` (equality + readable printing for tests). Predicates
+      (`initialize-request?` etc.) are provided.
+- [ ] A per-type **flat contract** exists and is enforceable (`contract?` true); each
+      contract rejects malformed inputs (wrong type, missing required field, wrong literal
+      `type`/`method`, out-of-enum value).
+- [ ] **Deserialization** `(json->X jsexpr)` for each top-level message type maps a
+      `read-json` jsexpr (symbol-keyed `hasheq`, `'null`, lists) into the struct, splitting
+      unknown/`_meta` keys into the `rest` field for loose types. Raises (or returns a
+      contract violation) on malformed input.
+- [ ] **Serialization** `(X->json struct)` produces a `write-json`-ready jsexpr that:
+      - omits absent optional fields entirely (NO `"k": null` for absent),
+      - emits a present `'null` (only `Task.ttl`) as JSON null,
+      - merges the `rest`/`_meta` keys back verbatim,
+      - maps kebab-case fields back to the exact camelCase / `$schema` / `_meta` JSON keys.
+- [ ] **Round-trip parity:** for a representative message of **each envelope kind** (request,
+      notification, result-response, error-response) — at minimum `initialize` request,
+      `tools/call` request, `initialize` result, a `notifications/progress` notification, a
+      `tools/list` result with pagination + `_meta`, and an error response — parsing the
+      fixture JSON to a struct and re-serializing yields JSON that is **semantically
+      identical** to the fixture (see Testing Strategy for the canonicalized comparison —
+      compare re-parsed jsexpr, not raw bytes).
+- [ ] **`_meta`/extra-key passthrough:** a fixture carrying `_meta` and an unknown extra key
+      in a loose object round-trips with those keys preserved (a test asserts the key is
+      present in the re-serialized output).
+- [ ] **Contract-rejection:** for each major category, a malformed input (e.g. `initialize`
+      missing `protocol-version`; `tools/call` with non-string `name`; `set-level` with an
+      out-of-enum `level`; a content block with `type:"text"` but missing `text`; `Task`
+      missing required `ttl`) is rejected by its contract / deserializer.
+- [ ] **Strict envelope vs loose payload:** an envelope with an extra top-level key is
+      rejected; a payload/result with an extra inner key is **accepted** and preserved
+      (parity with schemas.ts `.strict()` envelope + loose payloads).
+- [ ] The four error codes / `JSONRPC-VERSION` are imported from `constants.rkt` (not
+      re-literaled); `URLElicitationRequiredError` uses `URL-ELICITATION-REQUIRED`.
+- [ ] `raco test mcp/core/types/` passes (exit 0) from repo root — module + test compile and
+      load cleanly alongside items 001/002.
+- [ ] **Portability (NFR):** the module requires only `racket/base`, `racket/contract`,
+      `json` (for the jsexpr conventions; no I/O at module load), and `constants.rkt`. No
+      subprocess/socket module. (Restricted-load test is item 008's job; this module must not
+      introduce such a dependency.)
+- [ ] **N1-readiness:** the per-primitive structs and union contracts are individually
+      provided (not hidden behind a single opaque blob) so item 005 can union 003 + 004
+      field-by-field. A comment block documents the field-presence model item 005 relies on.
+- [ ] Parity-matrix discipline: the roadmap §9 / progress row for `spec-2025-11-25.rkt`
+      under `core/types/*` is advanced toward `partial` on completion (Completion Reminder);
+      sibling rows (`spec-2026-07-28`, `types.rkt` façade) untouched.
+
+---
+
+## Implementation steps
+
+1. **Confirm collection dirs** exist (`mcp/core/types/`, `mcp/core/types/test/`; created by
+   item 001).
+2. **Re-read `spec.types.2025-11-25.ts` and `schemas.ts`** against §Type inventory — verify
+   every line citation and that no type was added/removed upstream since 2026-06-17 (the file
+   header names a frozen commit `357adac…`; it is generated and should be stable, but
+   confirm the count).
+3. **Write `mcp/core/types/spec-2025-11-25.rkt`**, `#lang racket/base`,
+   `(require racket/contract (only-in "constants.rkt" JSONRPC-VERSION URL-ELICITATION-REQUIRED …))`.
+   Group with section comments matching §A–Q. For each type:
+   a. Define a `#:transparent` `struct` with the named fields (+ `rest` for loose types).
+   b. Define the flat contract `name/c` (`struct/c` or a predicate-based `flat-named-contract`).
+   c. Define `(json->name jsexpr)` and `(name->json struct)` using shared helpers
+      (`json-object?`, `take-key`/`absent`, `put-opt`, `split-rest`, list mappers, the
+      camelCase↔kebab field table).
+4. **Write shared serialization helpers** once (internal): `json-object?`, the `absent`
+   sentinel, `(opt-field h key conv)` (absent-aware deser), `(emit-opt jsexpr key val conv)`
+   (omit-if-absent ser), `(split-known h known-keys)` → (named-alist, rest-hasheq),
+   `(merge-rest jsexpr rest)`, `(json-null? v)` / `'null` handling, and list mappers for the
+   array fields. Centralizing these is what keeps 70 types maintainable and is what item 004
+   will copy structurally.
+5. **Dispatch deserializers** for the union types (`content-block`, `sampling-message-content-block`,
+   `primitive-schema-definition`, `enum-schema`, `elicit-request-params`) on the
+   discriminator key (`type` / `mode` / shape) → the right struct.
+6. **Add the explicit `provide`** (structs, predicates, `…/c` contracts, `json->`/`->json`
+   per top-level message type, the aggregate union contracts, the `absent`/`MISSING`
+   sentinel). Decide `contract-out` vs raw+`…/c` (see Decisions) and apply consistently.
+7. **Author the JSON fixtures** under `mcp/core/types/test/fixtures/` (one `.json` per
+   envelope kind — see Testing Strategy; the TS repo has NO ready-made JSON fixtures, so
+   these are hand-authored from the TS type shapes and validated by the round-trip).
+8. **Write the test** `mcp/core/types/test/spec-2025-11-25-test.rkt` (round-trip +
+   passthrough + contract-rejection + strict-envelope/loose-payload — see Testing Strategy).
+9. **Run** `raco test mcp/core/types/` from repo root; fix mismatches. Most-likely failures:
+   absent-vs-null on optional fields; dropped `_meta`/extra keys; `$schema`/`_meta` key
+   mapping; `Task.ttl` required-but-nullable; union dispatch on `type`/`mode`.
+10. **Update progress + parity matrix** (Completion Reminder).
+
+---
+
+## Testing strategy
+
+**Test file:** `mcp/core/types/test/spec-2025-11-25-test.rkt` (`#lang racket/base`,
+`require rackunit`, `json`, `racket/runtime-path` for fixture paths, the module under test).
+The test has four parts.
+
+### Fixture source decision (CALLED OUT)
+
+There are **no ready-made JSON fixtures** in the TS checkout for round-tripping:
+- `specTypeSchema.examples.ts` is **JSDoc snippet bait** (40 lines; just
+  `specTypeSchemas.CallToolResult[...].validate(untrusted)` illustrations) — **NOT** JSON
+  data. Do not use it as a fixture source.
+- `test/spec.types.2025-11-25.test.ts` is a **static type-assignment** test
+  (`sdk = spec; spec = sdk` mutual-assignability checks, 950 lines) — **not** JSON fixtures.
+- No `*.json` fixture files exist under `packages/core` for these types.
+
+**Therefore the implementer authors the fixtures by hand**, modeling them on the exact TS
+type shapes (each field a valid example value), and stores them as `.json` files under
+`mcp/core/types/test/fixtures/`. To keep them honest, the test also (a) re-parses both sides
+and (b) validates each fixture against its struct's contract, so a fixture that drifts from
+the type shape fails. (Optional, recommended cross-check: where the TS test or
+`specTypeSchema.ts` registry can be invoked, confirm field names match — but that requires a
+node toolchain and is out of scope for `raco test`; note it as a manual step.)
+
+### Part 1 — round-trip per envelope kind (the queue's core requirement)
+
+For each fixture file `F` (at minimum: `initialize-request.json`, `tools-call-request.json`,
+`initialize-result.json`, `progress-notification.json`, `list-tools-result.json` (with
+`_meta`, `nextCursor`, and a tool with `inputSchema`), `error-response.json`):
+
+1. `(define orig (call-with-input-file F read-json))`.
+2. `(define s (json->X orig))` — parse to struct.
+3. `(define rt (X->json s))` — re-serialize.
+4. **Canonicalized equality:** assert `(jsexpr=? orig rt)` where `jsexpr=?` is a recursive
+   comparator that treats JSON objects as **unordered key sets** (compare `hasheq`s by key,
+   not by `write-json` byte order — JSON object key order is not guaranteed and `write-json`
+   ordering need not match the fixture's). Lists compare in order; `'null` compares to
+   `'null`. **Do NOT compare raw bytes** — that would falsely fail on key reordering.
+   (Document this in Decisions: "identical" = jsexpr-equal under unordered object keys.)
+5. As a secondary belt: assert `(X->json (json->X rt))` equals `rt` (idempotent second pass).
+
+### Part 2 — `_meta` / additionalProperties passthrough
+
+Use a fixture (e.g. `list-tools-result.json`) carrying `_meta:{progressToken:…}` plus an
+unknown extra top-level key inside the loose result. Assert after round-trip the re-serialized
+jsexpr still contains `'_meta` and the unknown key (they landed in `rest` and were merged
+back). Also assert a content block carrying `_meta` preserves it.
+
+### Part 3 — contract-rejection (the queue's second requirement)
+
+Enumerate at least one reject case per category, each its own named `check-exn`/contract
+check:
+- `initialize` params missing `protocolVersion` → rejected.
+- `tools/call` params with `name` = number → rejected.
+- `set-level` with `level:"verbose"` (out of `logging-level/c`) → rejected.
+- content block `{type:"text"}` missing `text` → rejected; `{type:"bogus"}` → union dispatch
+  fails / rejected.
+- `Task` missing required `ttl` → rejected; `Task` with `status:"running"` (out of enum) →
+  rejected; `Task` with `ttl:'null` → **accepted** (nullable).
+- `jsonrpc-request` with an extra top-level key → rejected (strict envelope).
+- `image-content` missing required `mimeType` → rejected.
+- an `id` of `'null` / `1.5` where a request-id is required → rejected (reuse guards' rule).
+
+### Part 4 — strict-envelope vs loose-payload parity
+
+- Envelope with extra top-level key → rejected.
+- Result/params object with an extra inner key → **accepted** and preserved (Part 2 covers
+  preservation; here assert acceptance).
+- `URLElicitationRequiredError` round-trips with `error.code = -32042` (assert the value
+  equals `URL-ELICITATION-REQUIRED` from `constants.rkt`) and `error.data.elicitations` a
+  list of URL-elicit params.
+
+### Edge cases the test must cover (do not leave implicit)
+
+- **Absent vs null:** an optional field absent in the fixture must NOT appear as `null` after
+  round-trip; add a regression assertion that `(hash-has-key? rt 'instructions)` is `#f` when
+  the source omitted it.
+- **`Task.ttl` required-nullable:** a `Task` with `ttl:null` and one with `ttl:3600` both
+  round-trip; `ttl` absent → rejected.
+- **`$schema` / `_meta` key fidelity:** a `Tool.inputSchema` carrying `$schema` round-trips
+  with the literal `$schema` key (not mangled to `schema` or dropped).
+- **Union discriminators:** a `prompt-message` whose `content` is each of the 5 content-block
+  variants round-trips to the right struct; `sampling-message.content` as a single block AND
+  as a list both round-trip (TS allows `Block | Block[]`, line 1680).
+- **Empty objects:** `result:{}` (EmptyResult), `params` absent vs `params:{}`.
+- **Nested optional sub-objects:** `ClientCapabilities` with only `roots:{listChanged:true}`
+  set and everything else absent round-trips without spurious empty objects.
+- **Number types:** `priority`/`temperature` as JSON numbers (may be inexact flonums) survive
+  the round-trip equal under `jsexpr=?` (use `=` for numbers, allowing exact/inexact per the
+  fixture).
+- **`stop-reason` open enum:** `CreateMessageResult.stopReason` a non-standard string is
+  accepted (it's `… | string`, line 1670).
+
+---
+
+## Dependencies
+
+- **Upstream work items:** **item 001** (`constants.rkt` — `JSONRPC-VERSION`, error codes,
+  esp. `URL-ELICITATION-REQUIRED`) and **item 002** (`guards.rkt` — the `read-json`
+  jsexpr/`'null` conventions and the request-id rule are reused; this item re-implements the
+  shared `json-object?`/`valid-id?` helpers internally rather than importing guards'
+  un-provided internals). Both must be green first.
+- **Operates on:** parsed JSON values (`read-json` jsexpr) and produces `write-json`-ready
+  jsexpr. The module itself does no file/network I/O; the *test* reads fixture files.
+- **Downstream consumers (informational):** **item 004** (sibling `2026-07-28` revision —
+  built structurally parallel to this so 005 can diff/union them); **item 005**
+  (`types.rkt` N1 normalized-superset façade — UNIONs 003 + 004 per architecture line 326);
+  item 008 (barrels re-export this module's `provide`); item 009 (S1 demo parses an
+  `initialize` and `tools/call` using these structs).
+- **Tooling/runtime:** Racket ≥ 8.x (v9.1 installed; `raco` at `/snap/bin/raco`);
+  `rackunit`; the `typescript-sdk/` checkout at the repo root (read by the implementer to
+  build the inventory + fixtures; the test reads only the local hand-authored fixtures).
+
+---
+
+## Project-specific adaptations (Racket / contracts / rackunit)
+
+This template's "Required Services / database / API endpoint" framing does not apply: **this
+is a pure-data module — structs + flat contracts + jsexpr (de)serialization — with no
+external services, no I/O at module load, no network, no database.** Adaptations:
+
+- **Language:** `#lang racket/base` + `racket/contract` (flat contracts per the queue) +
+  `json` (only for the jsexpr conventions; `read-json`/`write-json` are exercised by the
+  test, not at module load). Keep `require`s minimal (Portability NFR).
+- **Structs not classes (G4):** transparent `struct`s with explicit fields; no class
+  transliteration of the TS interfaces. Interface inheritance (TS `extends`) is flattened —
+  e.g. `Implementation` carries `BaseMetadata` + `Icons` fields directly; list-request/result
+  bases (`PaginatedRequest*`) are flattened into each concrete struct.
+- **Flat contracts:** `racket/contract` `struct/c` / `flat-named-contract` /
+  `(or/c …)` unions. These are the Racket analogue of the TS Zod schemas; the truth is
+  `schemas.ts`, and the round-trip + rejection tests keep the hand-written contracts in sync.
+- **Naming:** kebab-case structs/fields; predicates end in `?`; contracts end in `/c`;
+  screaming-kebab only for any constants (none new here — codes come from `constants.rkt`).
+- **Public surface:** explicit `(provide …)` — never `all-defined-out` — mirroring the TS
+  curated `core/public` boundary (architecture §1.3). Internal helpers
+  (`json-object?`, `absent`, `split-known`, field tables) are NOT provided (except the
+  `absent` sentinel, which 005 needs — provide it deliberately).
+- **jsexpr representation:** JSON object = immutable symbol-keyed `hasheq`; JSON null =
+  `'null`; absent optional = the `absent` sentinel + key omission on serialize.
+- **No services / no I/O:** the only file access is the test reading hand-authored fixtures.
+
+---
+
+## Testing Prerequisites (CRITICAL)
+
+### Required Services
+
+**None.** No I/O at module load, no service contacted. External artifacts:
+
+| "Service" | Why | How to obtain | Port |
+|---|---|---|---|
+| Racket ≥ 8.x runtime (v9.1 installed) | compile + run module/tests (`raco`, `rackunit`); `raco` at `/snap/bin/raco` | system install (`racket --version` ≥ 8.0) | n/a |
+| Item 001 `constants.rkt` | imports `JSONRPC-VERSION` + error codes | produced by item 001 in the same collection | n/a |
+| Item 002 `guards.rkt` (conventions only) | shared jsexpr/`'null`/request-id conventions (re-implemented, not imported) | item 002 | n/a |
+| `typescript-sdk/` checkout | implementer reads `spec.types.2025-11-25.ts` + `schemas.ts` to build inventory/fixtures | already present at repo root | n/a |
+| Hand-authored JSON fixtures | `mcp/core/types/test/fixtures/*.json` — the round-trip inputs | created in step 7 (no ready-made TS fixtures exist) | n/a |
+
+No databases, queues, HTTP servers, or network dependencies. (Harmless
+`/home/rev/.bash_env: Permission denied` on stderr — ignore.)
+
+### Environment Configuration
+
+- **Environment variables / secrets / config files:** none.
+- **Ports:** none must be free.
+- **Working directory:** run `raco test` from the **repo root**
+  (`/home/rev/Linux/Projects/racket_mcp`) so the `mcp/...` collection resolves; the test
+  anchors fixture paths via `define-runtime-path`, so fixtures resolve regardless of cwd.
+- **Pre-flight checks:**
+  - `racket --version` → ≥ 8.0.
+  - `test -f mcp/core/types/constants.rkt && test -f mcp/core/types/guards.rkt` → items 001/002 present.
+  - `test -d mcp/core/types/test/fixtures` → fixtures authored.
+
+### Manual Validation Checklist
+
+- [ ] **Build/compile:** `raco make mcp/core/types/spec-2025-11-25.rkt` compiles clean.
+- [ ] **Module loads in isolation:** from repo root,
+      `racket -e '(require (file "mcp/core/types/spec-2025-11-25.rkt"))'` succeeds.
+- [ ] **Tests pass:** `raco test mcp/core/types/test/spec-2025-11-25-test.rkt` → exit 0.
+- [ ] **Collection tests pass:** `raco test mcp/core/types/` → exit 0 (items 001+002+003).
+- [ ] **Services started:** N/A.
+- [ ] **Application runs:** N/A (library; "running" = require + REPL inspect).
+- [ ] **Round-trip verified (REPL):** parse a hand-built `initialize` jsexpr to
+      `initialize-request` and re-serialize; confirm `jsexpr=?` to the input.
+- [ ] **`_meta` passthrough verified (REPL):** a result with `_meta` round-trips with `_meta`
+      present in the output.
+- [ ] **Absent-vs-null verified (REPL):** an `initialize-result` without `instructions`
+      re-serializes WITHOUT an `instructions` key (not `null`).
+- [ ] **`Task.ttl` verified (REPL):** `ttl:'null` round-trips to JSON `null`; `ttl` absent is
+      rejected by the contract.
+- [ ] **Contract-rejection verified (REPL):** `tools/call` with numeric `name` raises a
+      contract violation.
+- [ ] **Strict-envelope verified (REPL):** a request jsexpr with an extra top-level key is
+      rejected; a result with an extra inner key is accepted.
+- [ ] **Drift detection:** flip one expected round-trip assertion (or corrupt a fixture's
+      field name) and confirm the test FAILS; revert.
+- [ ] **Health checks pass:** N/A.
+
+### Expected Outcomes
+
+The module MUST export structs + contracts + (de)serializers for **every** type in §A–Q.
+The test reports a concrete **inventory + counts**:
+
+- **JSON-RPC envelopes:** 4 (request, notification, result-response, error-response).
+- **Requests (method-specific):** 18 distinct request structs —
+  client: `initialize`, `ping`, `completion/complete`, `logging/setLevel`, `prompts/get`,
+  `prompts/list`, `resources/list`, `resources/templates/list`, `resources/read`,
+  `resources/subscribe`, `resources/unsubscribe`, `tools/call`, `tools/list`, `tasks/get`,
+  `tasks/result`, `tasks/list`, `tasks/cancel` (16 in `ClientRequest`; `ping` + the 4 task
+  requests are shared with `ServerRequest`); server-only: `sampling/createMessage`,
+  `roots/list`, `elicitation/create` (+ shared `ping`, 4 task requests). (8 in `ServerRequest`.)
+- **Notifications:** 11 — `cancelled`, `progress`, `initialized`, `message` (logging),
+  `resources/updated`, `resources/list_changed`, `tools/list_changed`,
+  `prompts/list_changed`, `roots/list_changed`, `elicitation/complete`, `tasks/status`.
+- **Result types:** ~17 — `EmptyResult`, `InitializeResult`, `CompleteResult`,
+  `GetPromptResult`, `ListPromptsResult`, `ListResourcesResult`,
+  `ListResourceTemplatesResult`, `ReadResourceResult`, `CallToolResult`, `ListToolsResult`,
+  `CreateMessageResult`, `ListRootsResult`, `ElicitResult`, `CreateTaskResult`,
+  `GetTaskResult`, `GetTaskPayloadResult`, `ListTasksResult`, `CancelTaskResult`.
+- **Errors:** the `jsonrpc-error` inner object + `jsonrpc-error-response` envelope + the
+  specialized `url-elicitation-required-error` (code `-32042`).
+- **Supporting/common/content/payload types:** ~22 (Result, BaseMetadata, Implementation,
+  Icon, Annotations, Resource, ResourceTemplate, Text/BlobResourceContents, Prompt,
+  PromptArgument, PromptMessage, Tool, ToolAnnotations, ToolExecution, Task, TaskMetadata,
+  RelatedTaskMetadata, 5 content blocks, ModelPreferences, ModelHint, ToolChoice,
+  SamplingMessage, the elicitation primitive/enum schema family (≈9), the completion
+  refs (2), Root, capability structs (2)).
+- **Aggregate union contracts:** 7 (`client-request/c`, `client-notification/c`,
+  `client-result/c`, `server-request/c`, `server-notification/c`, `server-result/c`,
+  `jsonrpc-message/c`).
+- **Total named struct types:** **≈ 70** (the test prints the exact count via
+  introspection; record it in Validation Results).
+
+**Test outcome:** `raco test mcp/core/types/` → all checks pass, 0 failures, 0 errors.
+Round-trip checks ≥ 6 (one per envelope/category fixture); contract-rejection checks ≥ 8;
+passthrough checks ≥ 2; strict/loose checks ≥ 3.
+
+**Total public bindings provided:** the struct types (≈70) × (struct + predicate + `…/c`) +
+the `json->`/`->json` pairs for top-level message types + 7 union contracts + the `absent`
+sentinel. (Exact count recorded during implementation.)
+
+### Validation Results
+
+```markdown
+## Validation Results
+- [ ] Service started: N/A (pure-data module, no services)
+- [ ] Application started successfully: N/A (library; require + REPL inspect succeeded)
+- [ ] Build verified: `raco make mcp/core/types/spec-2025-11-25.rkt` clean
+- [ ] Module load verified: `(require (file ".../spec-2025-11-25.rkt"))` succeeds
+- [ ] Tests verified: `raco test mcp/core/types/` → 0 failures, 0 errors
+- [ ] Inventory verified: every type in §A–Q implemented; printed struct count = ___ (≈70)
+- [ ] Round-trip verified: initialize req/result, tools/call req, progress notif, list-tools result, error response all jsexpr=? after round-trip
+- [ ] _meta/additionalProperties passthrough verified: _meta + unknown key preserved
+- [ ] Absent-vs-null verified: absent optional omitted (not null); Task.ttl null preserved
+- [ ] Contract-rejection verified: ≥8 malformed inputs rejected per category
+- [ ] Strict-envelope/loose-payload verified: top-level extra rejected; inner extra accepted+preserved
+- [ ] URLElicitationRequiredError verified: code = URL-ELICITATION-REQUIRED (-32042), data.elicitations list
+- [ ] N1-readiness verified: per-primitive structs + union contracts individually provided
+- [ ] Drift detection: corrupted fixture/assertion FAILED as expected, then reverted
+- [ ] Database tables verified: N/A
+- [ ] API endpoints verified: N/A
+- [ ] Screenshots captured: N/A (no UI)
+```
+
+---
+
+## Decisions & Trade-offs
+
+To be updated during implementation. Open decisions the implementer must record:
+
+- **`contract-out` vs raw struct + `…/c`:** whether to `(provide (contract-out [struct …]))`
+  (contracts enforced at the boundary, slower) or provide raw transparent structs plus
+  separate `…/c` flat contracts the caller applies (faster, more flexible for 005's façade).
+  *Recommendation:* provide raw transparent structs + separate `…/c` contracts (item 005
+  needs to construct/destructure freely; per-call contract checking belongs at the protocol
+  boundary, not here). Record the final choice.
+- **Loose-type `rest` field:** confirmed approach for `_meta`/additionalProperties
+  passthrough (every Result/RequestParams/loose object gets a `rest` `hasheq`). Alternative
+  (rejected): enumerate `_meta` contents — impossible, it's open.
+- **Canonical equality for round-trip:** `jsexpr=?` compares objects as unordered key sets,
+  lists in order, numbers by `=`, `'null` by `eq?`. Raw-byte comparison rejected (JSON key
+  order not guaranteed; `write-json` ordering need not match the fixture).
+- **`$schema` / `_meta` key mapping:** decide the Racket field name for `$schema`
+  (`schema-uri`? or keep in `rest`?) and for `_meta` (`meta` field). Record the mapping table
+  and ensure the literal JSON keys (`$schema`, `_meta`) are emitted exactly.
+- **Nested capability sub-objects:** model `ClientCapabilities.tasks.requests.sampling.…` as
+  sub-structs vs nested `hasheq` blobs. *Recommendation:* nested `hasheq` (loose) for the
+  deeply-nested capability trees (they are open `looseObject`s, schemas.ts:351+), explicit
+  structs only for the top capability record.
+- **Interface-intersection results (`GetTaskResult = Result & Task`, etc.):** flatten Task's
+  fields into the result struct vs embed a `task` sub-struct. Record choice (flatten matches
+  the wire shape — Task fields appear at the result top level).
+- **`EmptyResult` strictness:** schemas.ts:207 makes it strict; decide whether to enforce
+  (reject extra keys) or treat as ordinary `result`. Record.
+- **N1-readiness contract:** document the field-presence model (absent sentinel) that item
+  005's façade unions against, so 004 mirrors it exactly.
+
+---
+
+## Completion Reminder
+
+On completion, the implementer MUST:
+
+1. **Update `docs/aide/progress.md`** — advance the `mcp/core/types/spec-2025-11-25.rkt`
+   deliverable line under Stage S1 from 📋 → 🚧 (when starting) → ✅ (when delivered and
+   acceptance criteria pass). Note the progress line (progress.md:47) currently bundles
+   `spec-2025-11-25.rkt` + `spec-2026-07-28.rkt` on one row — do NOT mark the combined row ✅
+   until item 004 also lands; if needed, split the line so this item's half can flip to ✅
+   without claiming 004. Do not check Stage-S1 acceptance boxes owned by other items
+   (façade normalization, error encode/decode); only the spec-types-2025-11-25 round-trip box
+   may be checked once this item's test passes. Never revert an icon backward.
+2. **Touch the parity-matrix rows** per Stage S1 discipline (roadmap "Parity discipline
+   applies to every stage"): advance the roadmap §9 / progress row for `spec.types.2025-11-25`
+   (under `core/types/*`) toward `partial` (structs/contracts exist + round-trip-tested; full
+   conformance lands later). Per item 009 the broader `core/types/*` flip to `partial` is the
+   S1 closeout's job — record only that the `spec-2025-11-25` sub-row is satisfied; do not
+   prematurely flip sibling rows.
+3. Leave the sibling `core/types/*` deliverables (`constants` + `guards` — already delivered;
+   `spec-2026-07-28`, `types.rkt` façade, errors) at their current status — this item
+   delivers only `spec-2025-11-25.rkt`.

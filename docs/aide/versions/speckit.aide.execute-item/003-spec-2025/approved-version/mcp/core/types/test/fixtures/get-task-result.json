@@ -1,0 +1,11 @@
+{
+  "taskId": "task-42",
+  "status": "completed",
+  "statusMessage": "done",
+  "createdAt": "2026-06-17T10:00:00Z",
+  "lastUpdatedAt": "2026-06-17T10:05:00Z",
+  "ttl": 3600,
+  "pollInterval": 500,
+  "_meta": { "owner": "svc" },
+  "extraResultKey": "kept-on-loose-result"
+}

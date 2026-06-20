@@ -1,0 +1,1 @@
+Item 006 (errors.rkt ENCODE half) APPROVED by code review (9/10, needs_revision=false). errors.rkt 186 lines; errors-test.rkt 200 lines (65 checks). All tests green; no regressions. errors.rkt stays 🚧 in progress.md — item 007 (decode) owns the ✅ flip (roadmap S1 errors deliverable covers both directions).

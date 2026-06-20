@@ -1,0 +1,20 @@
+{
+  "tools": [
+    {
+      "name": "get_weather",
+      "title": "Get Weather",
+      "description": "Returns the weather for a location.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": { "location": { "type": "string" } },
+        "required": ["location"]
+      },
+      "annotations": { "readOnlyHint": true },
+      "_meta": { "category": "weather" }
+    }
+  ],
+  "nextCursor": "cursor-page-2",
+  "_meta": { "progressToken": "p-9" },
+  "unknownExtraTopKey": "preserved-on-result"
+}

@@ -1,0 +1,1 @@
+Item 007 (errors.rkt DECODE half) APPROVED by code review (9/10, needs_revision=false). errors.rkt now 251 lines (encode+decode); errors-test.rkt 365 lines (86 checks). All tests green; no regressions. errors.rkt COMPLETE (both directions) — progress.md flips 🚧→✅.

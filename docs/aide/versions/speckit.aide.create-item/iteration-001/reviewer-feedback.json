@@ -1,0 +1,12 @@
+{
+  "overall_rating": 8,
+  "needs_revision": false,
+  "key_issues": [
+    "All five ground-truth facts are correct and well-handled: two-file/two-naming-style codes asserted against both constants.ts and enums.ts; ordered 5-entry SUPPORTED_PROTOCOL_VERSIONS pinned as a whole list; JSONRPC_VERSION='2.0' included; DEFAULT_NEGOTIATED older-than-LATEST captured as intentional; underscore-literal normalization plus a strong anti-vacuous-pass design (hard-fail on missing file/name + deliberate-mutation manual check).",
+    "SUGGESTED: LATEST_PROTOCOL_VERSION appears twice in constants.ts (line 1 definition + line 3 array reference). The ts-string-named regex must anchor on 'export const ... =' or it can capture '2025-06-18' from the array; and ts-string-list-named must resolve the leading bareword reference to get 5 entries, not 4. Highest-value extraction hardening.",
+    "SUGGESTED: UrlElicitationRequired = -32_042 is the last enum member and has NO trailing comma (enums.ts:25); a numeric-capture regex assuming a trailing comma will fail to extract -32042 (the spec-significant UrlElicitationRequired code). Capture must tolerate optional comma / EOL.",
+    "SUGGESTED: enum-member regexes should anchor on '^\\s*<Name>\\s*=' (word-boundary, case-sensitive) so they don't match the names inside doc-comment prose (enums.ts:16-17,21).",
+    "SUGGESTED: Expected-Outcomes uses '>= 18 checks'; make it an exact count (or assert each named assertion category is present) so a missing category can't pass under the lower bound.",
+    "OPTIONAL: add (member DEFAULT-NEGOTIATED-PROTOCOL-VERSION SUPPORTED-PROTOCOL-VERSIONS) invariant to catch a future bump that orphans the default."
+  ]
+}

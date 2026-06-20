@@ -1,0 +1,17 @@
+{
+  "protocolVersion": "2025-11-25",
+  "capabilities": {
+    "logging": {},
+    "completions": {},
+    "prompts": { "listChanged": true },
+    "resources": { "subscribe": true, "listChanged": true },
+    "tools": { "listChanged": true },
+    "tasks": { "list": {}, "cancel": {}, "requests": { "tools": { "call": {} } } }
+  },
+  "serverInfo": {
+    "name": "example-server",
+    "version": "2.3.1"
+  },
+  "instructions": "Use the tools to fetch weather.",
+  "_meta": { "build": "release" }
+}

@@ -1,0 +1,19 @@
+{
+  "method": "server/discover",
+  "params": {
+    "_meta": {
+      "progressToken": "tok-1",
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { "name": "demo-client", "version": "1.0.0" },
+      "io.modelcontextprotocol/clientCapabilities": {
+        "sampling": { "context": {}, "tools": {} },
+        "elicitation": { "form": {}, "url": {} },
+        "experimental": { "x-foo": { "k": 1 } },
+        "extensions": { "io.modelcontextprotocol/oauth-client-credentials": {} }
+      },
+      "io.modelcontextprotocol/logLevel": "info",
+      "io.modelcontextprotocol/related-task": { "taskId": "task-42" },
+      "com.example/trace": "trace-id-9"
+    }
+  }
+}

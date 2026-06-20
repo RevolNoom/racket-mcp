@@ -1,0 +1,7 @@
+[
+  { "type": "text", "text": "hello", "annotations": { "audience": ["user"], "priority": 0.5 }, "_meta": { "k": 1 } },
+  { "type": "image", "data": "aGVsbG8=", "mimeType": "image/png" },
+  { "type": "audio", "data": "YXVkaW8=", "mimeType": "audio/wav" },
+  { "type": "resource_link", "name": "doc", "uri": "file:///doc.txt", "title": "Doc", "mimeType": "text/plain" },
+  { "type": "resource", "resource": { "uri": "file:///r.txt", "mimeType": "text/plain", "text": "body" } }
+]

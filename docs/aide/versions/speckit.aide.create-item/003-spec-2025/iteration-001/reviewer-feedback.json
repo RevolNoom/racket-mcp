@@ -1,0 +1,22 @@
+{
+  "overall_rating": 8.5,
+  "needs_revision": false,
+  "key_issues": [
+    "NON-BLOCKING (parity): spec marks all request-params structs '(loose)' but schemas.ts shows BaseRequestParamsSchema = z.object (NOT loose) — concrete request params (InitializeRequestParams etc.) STRIP unknown non-_meta keys rather than preserve them. Only ResultSchema/GetTaskPayloadResult/capability trees are truly looseObject. _meta is a named field so _meta passthrough is fine either way. Fold a chosen option into Decisions; scope the 'extra inner key preserved' assertion to results only, not request params.",
+    "NON-BLOCKING (test coverage): Part-1 fixtures cover envelope kinds but not every discriminated-union arm. Make 'one round-trip fixture per union arm' a hard minimum: 5 ContentBlock, 5 SamplingMessageContentBlock (incl. toolUse/toolResult, which never appear in the general ContentBlock test), 5 EnumSchema, 2 ElicitRequestParams, 2 ResourceContents, 4 PrimitiveSchema, plus a populated NESTED capability (current cap test is shallow: roots.listChanged only).",
+    "NON-BLOCKING (anti-vacuous-pass): hand-authored fixture + hand-authored struct by same author can agree on a wrong camelCase key and still round-trip green. Add a field-mapping unit test (kebab<->camel: $schema, _meta, serverInfo, inputSchema) INDEPENDENT of fixtures, and require fixture camelCase keys be copied from the TS interface, not retyped.",
+    "COSMETIC: result count is exactly 18 (the 17 in Expected-Outcomes list + CreateTaskResult, line 1396 'extends Result', present in inventory section J but omitted from the Expected-Outcomes results bullet). Also '16 client + 8 server = 18 distinct' arithmetic is confusing; restate as '20 distinct request structs (16 client union 8 server, 4 shared: ping + 4 task requests)'.",
+    "ADVISORY: split progress.md:47 (currently bundles spec-2025-11-25.rkt + spec-2026-07-28.rkt on one row) into two deliverable rows so this item's half can advance independently of item 004 — Completion Reminder already mandates not flipping the combined row; splitting is cleaner."
+  ],
+  "inventory_completeness": "PASS — all 20 requests, 11 notifications, 18 results, error envelopes + URLElicitationRequiredError(-32042), all discriminated-union arms, and the 3 intersection types (GetTaskResult, CancelTaskResult, TaskStatusNotificationParams) present and correctly flagged. ~120 cited TS line numbers verified individually against spec.types.2025-11-25.ts; all accurate. No missing types.",
+  "round_trip_edge_handling": "PASS — key-order (jsexpr=? unordered keys, not bytes), absent-vs-null (absent sentinel + key omission; Task.ttl required-nullable isolated and verified as the only |null field), and unknown-key/_meta passthrough via rest-hasheq all explicitly handled and tested.",
+  "fixture_plan": "ADEQUATE — correctly rejects specTypeSchema.examples.ts (JSDoc bait) and the static type-assignability test as fixture sources (verified no *.json fixtures exist); hand-authoring with contract-validation as the honesty safeguard is the right call. Reinforce per union-arm coverage and an independent field-mapping test.",
+  "ambiguity_verdicts": {
+    "progress_md_47_bundled_row": "Handled correctly; recommend splitting the line now.",
+    "schema_meta_field_mapping": "Real issue, handled; keep $schema in rest (inside the open JSON-Schema fragment), map _meta->meta named field; assert literal keys survive verbatim.",
+    "emptyresult_strict": "Accurate (EmptyResultSchema = ResultSchema.strict(), schemas.ts:207); 'enforcement optional for S1' acceptable; do not run a stray-key passthrough fixture on an EmptyResult; note the deferred gap.",
+    "nested_capabilities_loose_vs_substruct": "Agree with spec: loose hasheq for deep trees (confirmed z.looseObject at schemas.ts:351+); explicit structs only for top capability records; add a populated-nested-capability round-trip fixture."
+  },
+  "missing_types": [],
+  "required_sections_audit": "PASS — all create-item sections present and substantive, including the CRITICAL Testing Prerequisites block (Required Services / Environment Configuration / Manual Validation Checklist / Expected Outcomes / Validation Results template) and the project-specific pure-data-module adaptation."
+}

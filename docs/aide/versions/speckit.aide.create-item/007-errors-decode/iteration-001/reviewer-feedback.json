@@ -1,0 +1,12 @@
+{
+  "overall_rating": 8,
+  "needs_revision": true,
+  "key_issues": [
+    "CRITICAL C1: The spec's RECOMMENDED `json-object?` import (Decisions option (a), one `only-in` from spec-2025-11-25.rkt) will NOT compile — `json-object?` is defined at spec-2025-11-25.rkt:51 under the 'NOT provided' comment and is absent from the provide block (lines 106-320 verified). An implementer following the recommendation hits a 'not exported' error. Fix: demote option (a), promote option (b) — a local `(and (hash? d) (hash-eq? d) (immutable? d))` check that is byte-identical to json-object?'s body (so NOT a parity hazard) — OR explicitly authorize re-exporting json-object? from M1 (but the item forbids editing core/types/*).",
+    "CRITICAL C2: No test that the data-gate REJECTS a present-but-wrong-shape -32042 payload (a json-object lacking 'elicitations, e.g. (hasheq 'foo 1)). Without it, a code-only match dropping the 'elicitations check passes every listed test — the gate is vacuously tested. Add: -32042 with (hasheq 'foo 1) -> still -32042 protocol error, no throw.",
+    "CRITICAL C3: -32004 gate has two conjuncts ('supported a list? AND 'requested a string?) but only the 'supported-broken case is tested. No test breaks 'requested. An impl checking only 'supported passes all tests. Add a -32004 with valid 'supported list but absent/non-string 'requested -> generic fall-through.",
+    "SUGGESTED S2/S3: Round-trip 6d list omits an auth-error e (prose claims 'base/auth e -> protocol' but no auth case is exercised) and does not assert the OUTPUT type (protocol-error? #t / auth-error? #f) for the base/auth cases. Add a make-auth-error to the 6d list and assert subtype erasure to :protocol.",
+    "SUGGESTED S1/S5: Add a reverse-fixpoint case for a SPECIAL code with good data (j = url-elicitation with 'elicitations -> equal? after encode∘decode), and assert a special code with \"\" message decodes to exn-message \"\" (decode never synthesizes the TS default message even on the specialized branch).",
+    "VERIFIED SOUND: code constants (-32042/-32004), TS errors.ts dispatch+data-gate+default mapping, jsonrpc-error struct shape, (struct-out jsonrpc-error) exporting the test's needed constructor+message selector, json->jsonrpc-error-response S3 rationale, the façade-vs-exn role split (no M2->types.rkt dependency), and the documented subtype-erasure round-trip asymmetry are all correct against source."
+  ]
+}

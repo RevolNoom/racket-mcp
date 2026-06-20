@@ -1,0 +1,21 @@
+{
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {
+      "experimental": { "x-foo": { "enabled": true } },
+      "roots": { "listChanged": true },
+      "sampling": { "context": {}, "tools": {} },
+      "elicitation": { "form": {}, "url": {} },
+      "tasks": {
+        "list": {},
+        "cancel": {},
+        "requests": {
+          "sampling": { "createMessage": {} },
+          "elicitation": { "create": {} }
+        }
+      }
+    },
+    "clientInfo": { "name": "deep-client", "version": "0.1.0" }
+  }
+}

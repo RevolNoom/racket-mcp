@@ -1,0 +1,26 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "NON-BLOCKING: resultType modeled as OPTIONAL while _meta modeled as REQUIRED, but BOTH are required (no '?') in the .d.ts (Result.resultType line 187; RequestParams._meta line 133). The optional-resultType choice is defensible (the resultType JSDoc explicitly sanctions absent-as-'complete' for backward compat; _meta has no such allowance), but the spec states a blanket 'follow the .d.ts' rule for _meta while silently doing the opposite for resultType. Add one sentence to Decisions acknowledging the intentional asymmetry.",
+    "NON-BLOCKING: ListRootsResult open question ('confirm _meta during impl', spec O2 lines 412-413) can be resolved now: ListRootsResult (spec.types:2556) is a BARE interface { roots: Root[] } only -- does NOT extend Result, no _meta/resultType/rest; ListRootsRequest (2534) is also bare. Pin this in O2 so the implementer does not bolt the generic meta?/result-type?/rest trio onto list-roots-result (would emit phantom keys and break round-trip parity).",
+    "MINOR: cross-reference the EmptyResult=Result alias with the resultType-optional decision so the empty-result fixture and the resultType call are clearly the same decision."
+  ],
+  "missing_types": [],
+  "wrongly_carried_removed_types": [],
+  "diff_accuracy": "accurate-and-complete",
+  "meta_keys_verbatim": true,
+  "rc_only_field_presence_test_present": true,
+  "verifications": {
+    "method_literal_count": "22 (verified grep) -- matches spec",
+    "ClientRequest_arms": "10 -- matches",
+    "ServerNotification_arms": "9 -- matches",
+    "ServerResult_arms": "11 -- matches (CreateMessage/ListRoots/Elicit results correctly placed in input-response/c, not server-result/c)",
+    "ClientResult": "EmptyResult only -- matches",
+    "RequestParams_meta_required": "line 133, no '?' -- spec models as required, correct",
+    "error_codes_in_constants_rkt": "UNSUPPORTED-PROTOCOL-VERSION -32004 (L48) + MISSING-REQUIRED-CLIENT-CAPABILITY -32003 (L47) EXIST -- spec claim accurate, no gap",
+    "meta_key_constants_in_constants_rkt": "ABSENT -- spec correctly requires additive add (step 3)",
+    "fixtures_exist": "NO -- examples/ dir does not exist, 124 dangling @includeCode refs; spec's hand-author decision correct",
+    "all_5_meta_key_strings": "verbatim match to constants.ts (L5/14/19/27/38)"
+  }
+}

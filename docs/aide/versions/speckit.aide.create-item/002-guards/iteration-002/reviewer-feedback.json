@@ -1,0 +1,22 @@
+{
+  "overall_rating": 9.5,
+  "needs_revision": false,
+  "key_issues": [],
+  "resolved_from_iteration_001": [
+    "GATING FIX VERIFIED: inner-`error` strictness removed and applied consistently across all 11 mentions (schema table 78, discriminator note 98-104, acceptance criterion 163-167, impl step 249-254, truth-table row 370 flipped to true, ambiguous #12 413-417, edge list 458-459, REPL step 567-569, expected outcomes 599-600, Decisions 655-663). grep for lingering `⊆ {code message data}` returns nothing. Confirmed against schemas.ts:177-192 (inner error is plain z.object, outer strict only; Zod v4 strips unknown inner keys → TS accepts error:{...,foo:1}).",
+    "params handling added with verified TS parity: present params must be json-object?, params:5/'null reject, contents not validated (RequestSchema.params schemas.ts:102 and NotificationSchema.params schemas.ts:115 both .loose().optional() objects). Helper params-ok? + truth-table rows + Decisions entry.",
+    "TS cross-check 3-of-5 limitation explicitly noted (item.md:269-274); matches guards.test.ts imports.",
+    "1.0 inexact-id row added (false via exact-integer?) across truth table, edge list, outcomes, decisions.",
+    "Decisions & Trade-offs filled with seven settled decisions (645-687), meeting item 001's bar."
+  ],
+  "micro_nits_non_blocking": [
+    "n1: json-object? 'be tolerant, accept any symbol-keyed hash' aside (item.md:219-222) is in slight tension with the strict immutable-hasheq reject rows; recommend dropping the aside. Editorial only.",
+    "n2: Expected Outcomes says '>= 50 check-*' (item.md:608); item 001 precedent prefers an exact count. Pin the exact number in Validation Results once the test is written. Editorial only."
+  ],
+  "verified_correct": [
+    "Outer .strict() on all four envelopes; both-result-and-error and id+method+result reject; top-level vs inner-key distinction (ambiguous #10 vs #12) correct.",
+    "id-less-error TRAP asserted across all five predicates (333, 399-403); error id optional vs required elsewhere; id 'null/fractional/boolean rejected.",
+    "result must be object; jsonrpc must equal string \"2.0\"; all cited line numbers accurate.",
+    "No-batch via module->exports + positive control + dynamic-require exn; never-raises set; union identity mirrors guards.test.ts:63-76; all required create-item sections present; anti-vacuous-pass satisfied."
+  ]
+}

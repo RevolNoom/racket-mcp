@@ -1,0 +1,6 @@
+[
+  { "type": "string", "title": "Name", "description": "your name", "minLength": 1, "maxLength": 80, "format": "email", "default": "a@b.co" },
+  { "type": "number", "title": "Amount", "minimum": 0, "maximum": 10, "default": 5 },
+  { "type": "integer", "title": "Count", "minimum": 1 },
+  { "type": "boolean", "title": "Agree", "default": true }
+]

@@ -1,0 +1,8 @@
+{
+  "method": "tools/call",
+  "params": {
+    "name": "get_weather",
+    "arguments": { "location": "Hanoi" },
+    "_meta": { "io.modelcontextprotocol/related-task": { "taskId": "t-1" } }
+  }
+}

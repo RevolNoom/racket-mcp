@@ -1,0 +1,7 @@
+[
+  { "type": "text", "text": "hi" },
+  { "type": "image", "data": "aW1n", "mimeType": "image/png" },
+  { "type": "audio", "data": "YXVk", "mimeType": "audio/wav" },
+  { "type": "tool_use", "id": "tu-1", "name": "calc", "input": { "x": 2 }, "_meta": { "k": 1 } },
+  { "type": "tool_result", "toolUseId": "tu-1", "content": [ { "type": "text", "text": "4" } ], "isError": false }
+]

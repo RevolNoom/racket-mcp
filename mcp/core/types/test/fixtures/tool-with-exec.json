@@ -1,0 +1,8 @@
+{
+  "name": "long_job",
+  "title": "Long Job",
+  "description": "A tool that supports tasks.",
+  "inputSchema": { "type": "object", "properties": {} },
+  "execution": { "taskSupport": "optional" },
+  "_meta": { "category": "jobs" }
+}

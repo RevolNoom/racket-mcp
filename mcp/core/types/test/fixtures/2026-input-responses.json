@@ -1,0 +1,17 @@
+{
+  "sample-1": {
+    "role": "assistant",
+    "content": { "type": "text", "text": "result" },
+    "model": "demo-model",
+    "stopReason": "endTurn",
+    "resultType": "complete"
+  },
+  "roots-1": {
+    "roots": [{ "uri": "file:///root", "name": "root", "_meta": { "k": 2 } }]
+  },
+  "elicit-1": {
+    "action": "accept",
+    "content": { "name": "Ada" },
+    "resultType": "complete"
+  }
+}

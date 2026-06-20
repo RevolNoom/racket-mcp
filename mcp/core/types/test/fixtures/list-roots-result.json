@@ -1,0 +1,7 @@
+{
+  "roots": [
+    { "uri": "file:///home/project", "name": "project", "_meta": { "owner": "me" } }
+  ],
+  "_meta": { "io.modelcontextprotocol/serverTrace": "roots-1" },
+  "unknownRootsKey": "preserved"
+}

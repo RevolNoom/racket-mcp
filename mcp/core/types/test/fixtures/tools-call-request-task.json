@@ -1,0 +1,9 @@
+{
+  "method": "tools/call",
+  "params": {
+    "name": "get_weather",
+    "arguments": { "location": "Hanoi" },
+    "task": { "ttl": 30000 },
+    "_meta": { "progressToken": "p-7", "io.modelcontextprotocol/related-task": { "taskId": "t-1" } }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "calculator",
+      "title": "Calculator",
+      "description": "Adds numbers",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": { "a": { "type": "number" }, "b": { "type": "number" } }
+      },
+      "outputSchema": { "type": "object", "properties": { "sum": { "type": "number" } } },
+      "annotations": { "title": "Calc", "readOnlyHint": true, "idempotentHint": true }
+    }
+  ],
+  "nextCursor": "cursor-2",
+  "ttlMs": 60000,
+  "cacheScope": "public",
+  "resultType": "complete",
+  "_meta": { "io.modelcontextprotocol/serverTrace": "s-1" },
+  "extraUnknownKey": { "preserved": true }
+}

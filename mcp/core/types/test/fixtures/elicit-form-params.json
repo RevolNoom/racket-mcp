@@ -1,0 +1,11 @@
+{
+  "mode": "form",
+  "message": "Please fill the form",
+  "requestedSchema": {
+    "type": "object",
+    "properties": { "name": { "type": "string" } },
+    "required": ["name"]
+  },
+  "task": { "ttl": 15000 },
+  "_meta": { "progressToken": "ep-1" }
+}

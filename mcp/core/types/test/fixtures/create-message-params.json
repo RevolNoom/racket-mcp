@@ -1,0 +1,9 @@
+{
+  "messages": [
+    { "role": "user", "content": { "type": "text", "text": "hello" } }
+  ],
+  "maxTokens": 512,
+  "temperature": 0.7,
+  "task": { "ttl": 9000 },
+  "_meta": { "trace": "cm-1" }
+}

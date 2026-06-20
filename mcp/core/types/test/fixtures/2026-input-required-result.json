@@ -1,0 +1,29 @@
+{
+  "inputRequests": {
+    "elicit-1": {
+      "method": "elicitation/create",
+      "params": {
+        "mode": "form",
+        "message": "Please provide your name",
+        "requestedSchema": {
+          "type": "object",
+          "properties": { "name": { "type": "string" } },
+          "required": ["name"]
+        }
+      }
+    },
+    "sample-1": {
+      "method": "sampling/createMessage",
+      "params": {
+        "messages": [{ "role": "user", "content": { "type": "text", "text": "hi" } }],
+        "maxTokens": 128
+      }
+    },
+    "roots-1": {
+      "method": "roots/list"
+    }
+  },
+  "requestState": "opaque-state",
+  "resultType": "input_required",
+  "_meta": { "io.modelcontextprotocol/serverTrace": "s-2" }
+}

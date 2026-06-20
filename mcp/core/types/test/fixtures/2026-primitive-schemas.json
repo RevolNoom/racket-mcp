@@ -1,0 +1,6 @@
+[
+  { "type": "string", "title": "Name", "minLength": 1, "maxLength": 50, "format": "email" },
+  { "type": "number", "title": "Score", "minimum": 0, "maximum": 100 },
+  { "type": "integer", "title": "Count", "minimum": 0 },
+  { "type": "boolean", "title": "Agree", "default": false }
+]

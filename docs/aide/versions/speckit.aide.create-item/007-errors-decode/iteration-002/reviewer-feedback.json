@@ -1,0 +1,11 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "C1 RESOLVED (compile blocker): §Decisions 'json-object? helper (SETTLED)' now mandates a LOCAL private helper `(and (hash? d) (hash-eq? d) (immutable? d))`, byte-identical to spec-2025-11-25.rkt:51-52, explicitly warns the `(only-in ...)` import would fail to compile (not exported), and corrects the 'parity hazard' framing. Verified consistent across impl step 4, Dependencies, Prerequisites table, and Project-specific adaptations; require list stays UNCHANGED.",
+    "C2 RESOLVED (vacuous -32042 gate): test 6c `dun2` adds -32042 with (hasheq 'foo 1) [object, no 'elicitations] -> generic branch, code preserved, data verbatim, no throw; pins the 'elicitations-key conjunct (a code-only impl fails it).",
+    "C3 RESOLVED (vacuous -32004 gate): test 6c `dvn` adds -32004 with valid 'supported list but non-string 'requested (7) plus a 'requested-MISSING variant -> generic branch, no throw; pins the 'requested-is-string conjunct.",
+    "S1/S2/S3/S5 RESOLVED (polish): 6d round-trip list now includes an auth-error case and asserts output subtype (protocol-error? #t / auth-error? #f) for both base and auth cases (erasure exercised); special-code reverse fixpoint (encode∘decode j equal? j) spelled out for specialized/-32004/generic j; 6a `dem` asserts a -32042 with \"\" message + good data decodes to exn-message \"\" (no synthesized default).",
+    "NON-BLOCKING NITS: (1) Manual Validation Checklist still says '(and possibly one only-in require line)' — with C1 import-free, the only possible new require is the OPTIONAL (recommended-omitted) wrapper; could be tightened. (2) `unsupported-version-data?` checks 'supported via list? only (no element-type check) — this is FAITHFUL to errors.ts:32 Array.isArray, not a gap. Neither warrants revision."
+  ]
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "mode": "form",
+    "message": "Please fill the form",
+    "requestedSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": { "name": { "type": "string" } },
+      "required": ["name"]
+    }
+  },
+  {
+    "mode": "url",
+    "message": "Authorize at the URL",
+    "elicitationId": "el-9",
+    "url": "https://example.com/auth"
+  }
+]

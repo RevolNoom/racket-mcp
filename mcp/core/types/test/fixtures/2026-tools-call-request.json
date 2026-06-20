@@ -1,0 +1,16 @@
+{
+  "method": "tools/call",
+  "params": {
+    "name": "calculator",
+    "arguments": { "a": 1, "b": 2 },
+    "requestState": "opaque-state-blob",
+    "inputResponses": {
+      "req-1": { "action": "accept", "content": { "name": "Ada" }, "resultType": "complete" }
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { "name": "demo-client", "version": "1.0.0" },
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  }
+}

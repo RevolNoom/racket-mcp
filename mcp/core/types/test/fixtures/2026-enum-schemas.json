@@ -1,0 +1,7 @@
+[
+  { "type": "string", "title": "Color", "enum": ["red", "green", "blue"] },
+  { "type": "string", "title": "Size", "oneOf": [{ "const": "s", "title": "Small" }, { "const": "l", "title": "Large" }] },
+  { "type": "array", "title": "Tags", "items": { "type": "string", "enum": ["a", "b", "c"] } },
+  { "type": "array", "title": "Picks", "items": { "anyOf": [{ "const": "x", "title": "X" }, { "const": "y", "title": "Y" }] } },
+  { "type": "string", "title": "Legacy", "enum": ["m", "n"], "enumNames": ["Em", "En"] }
+]

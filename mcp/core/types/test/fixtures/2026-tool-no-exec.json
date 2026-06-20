@@ -1,0 +1,7 @@
+{
+  "name": "long_job",
+  "title": "Long Job",
+  "description": "A tool with no execution field.",
+  "inputSchema": { "type": "object", "properties": {} },
+  "_meta": { "category": "jobs" }
+}

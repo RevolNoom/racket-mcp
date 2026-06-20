@@ -1,0 +1,19 @@
+{
+  "overall_rating": 7,
+  "needs_revision": true,
+  "key_issues": [
+    "CRITICAL parity bug: inner `error` sub-object is NOT .strict() in TS (schemas.ts:177-190 is a plain z.object; only the OUTER envelope is .strict()). Zod v4 strips unknown keys, so TS isJSONRPCErrorResponse accepts an unknown key inside `error`. Spec mandates the Racket guard REJECT it (item.md:197, 301, 377) — guard would be stricter than TS, breaking wire parity (G1/G2). Remove the inner error key-set restriction; flip the item.md:301 row to expect true.",
+    "Malformed `params` (present but not an object, e.g. params:5) is untested and would be wrongly ACCEPTED as a request — TS rejects it (params is loose-object-optional, schemas.ts:102). Either validate params object-shape + add a row, or explicitly document the envelope guards intentionally don't validate params contents (deferred to items 003-005).",
+    "Optional TS cross-check (item.md:207-212) can only validate 3 of 5 predicates: guards.test.ts imports isJSONRPCResultResponse/ErrorResponse/Response/isCallToolResult only — it does NOT test isJSONRPCRequest or isJSONRPCNotification. Add a note so readers don't assume all five are upstream-covered.",
+    "Add a `1.0` (inexact integral) id truth-table row alongside the existing 1.5 row — read-json yields flonum 1.0, exact-integer? is #f, correctly rejected, but it's the sneakier case.",
+    "Decisions & Trade-offs is a stub (item.md:544) — pre-record the settled decisions: 4-vs-5 predicate naming, only-keys?-as-.strict() (top-level only), inner-error-NOT-strict parity, valid-id? exact-integer rule, params-not-validated, string-keyed-hash rejection."
+  ],
+  "verified_correct": [
+    "All cited schemas.ts/guards.ts line numbers accurate (Request 141-147, Notification 152-157, ResultResponse 162-168, ErrorResponse 173-192, Message union 194, Response union 201, RequestId 136).",
+    "Outer .strict() correct: both-result-and-error and id+method+result reject.",
+    "Error-response id OPTIONAL vs required elsewhere; id-less-error trap explicitly in truth table (item.md:291, 331 #5).",
+    "id 'null/fractional/boolean rejected; result must be object; jsonrpc must equal string \"2.0\".",
+    "No-batch via module->exports + positive control + dynamic-require exn check is the right approach; grep batch over types/ re-verified zero.",
+    "Union identity assertion mirrors guards.test.ts:63-76; all required create-item sections present except the D&T stub; anti-vacuous-pass satisfied."
+  ]
+}
