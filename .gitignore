@@ -1,0 +1,8 @@
+# Racket compiled output
+compiled/
+*.zo
+*.dep
+
+# Racket package / doc build artifacts
+/doc/
+.racket-cache/
