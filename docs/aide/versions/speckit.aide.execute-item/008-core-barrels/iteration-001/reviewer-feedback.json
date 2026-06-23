@@ -1,0 +1,39 @@
+{
+  "item": "008-core-barrels-and-portability-test",
+  "iteration": 1,
+  "reviewer": "code-reviewer-expert",
+  "rating": 5,
+  "needs_revision": false,
+  "verification_method": "live re-execution of raco make/raco test plus a from-scratch 2-hop racket/tcp injection-and-revert, not trust of worker transcript",
+  "files_reviewed": [
+    "/home/tlam/racket-mcp/mcp/core/types/main.rkt",
+    "/home/tlam/racket-mcp/mcp/core/main.rkt",
+    "/home/tlam/racket-mcp/mcp/core/test/main-test.rkt",
+    "/home/tlam/racket-mcp/docs/aide/items/008-core-barrels-and-portability-test.md",
+    "/home/tlam/racket-mcp/docs/aide/progress.md"
+  ],
+  "commands_independently_rerun": [
+    {"cmd": "raco make mcp/core/types/main.rkt mcp/core/main.rkt", "result": "exit 0"},
+    {"cmd": "raco test mcp/core/types/ mcp/core/test/", "result": "908 tests passed, exit 0"},
+    {"cmd": "grep -c '^(define' mcp/core/types/main.rkt mcp/core/main.rkt", "result": "0 / 0"},
+    {"cmd": "2-hop drift injection: (require racket/tcp) into spec-2025-11-25.rkt, re-run main-test.rkt, revert", "result": "2/29 failures naming racket/tcp while injected; 29/29 pass after byte-identical revert (diff-confirmed)"}
+  ],
+  "acceptance_criteria": [
+    {"id": "AC1_types_main_exact_form", "status": "pass", "note": "verbatim spec Part A; raco make exit 0 confirmed live"},
+    {"id": "AC2_core_main_exact_form", "status": "pass", "note": "verbatim spec Part B; raco make exit 0 confirmed live"},
+    {"id": "AC3_seven_representative_bindings", "status": "pass", "note": "all 7 identifiers independently confirmed to exist where claimed, including the facade-text-content? substitution and r26:related-task-metadata-task-id via struct-out auto-accessor"},
+    {"id": "AC4_portability_walk_fresh_namespace_both_barrels", "status": "pass", "note": "make-base-namespace per call confirmed in code; 16 check-false assertions all pass in live 908-run"},
+    {"id": "AC5_nonvacuous_2plus_hops", "status": "pass", "note": "independently re-injected racket/tcp 2 hops deep and reproduced the exact failure messages, then reverted and confirmed clean"},
+    {"id": "AC6_curation_negative_tests", "status": "pass", "note": "uses corrected split-loose/h-opt/put!/url-elicitation-data?/unsupported-version-data? examples, not the spec-flagged-invalid json-object? example; all confirmed genuinely unprovided"},
+    {"id": "AC7_raco_test_no_regression", "status": "pass", "note": "908/908 passed, 0 regressed, confirmed live"},
+    {"id": "AC8_exact_forms_zero_defines", "status": "pass", "note": "grep -c confirms 0 defines in both files"},
+    {"id": "AC9_portability_clean_load", "status": "pass_indirect", "note": "implied by 908-pass run; bare racket -e one-liner not separately re-run in isolation, minor non-blocking gap"},
+    {"id": "AC10_scope_boundary_dag", "status": "pass", "note": "independently grepped all 6 underlying modules' require lists, confirmed no cycle"},
+    {"id": "AC11_progress_md_discipline", "status": "pass", "note": "line 52 flipped to checkmark correctly, line 53 set to in-progress with correct shared-ownership note, Stage S1 header correctly left untouched, lines 46-51 untouched"}
+  ],
+  "issues": [],
+  "minor_notes": [
+    "AC9's literal racket -e one-liner load check was not separately re-run outside the test harness; the equivalent guarantee is already proven by the 908-pass raco test run, so this is a completeness note, not a real gap.",
+    "item.md's own Decisions/Validation Results sections matched everything independently observed during this review with no discrepancies found."
+  ]
+}

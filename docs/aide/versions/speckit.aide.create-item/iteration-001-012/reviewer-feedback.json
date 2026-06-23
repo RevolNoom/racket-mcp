@@ -1,0 +1,13 @@
+{
+  "overall_rating": 8,
+  "needs_revision": true,
+  "key_issues": [
+    "Object-root rule has three untested/undefined branches: (a) array contract at root (listof string?) maps to a non-object type:array and must raise but is never pinned; (b) enum contract at root (or/c \"a\" \"b\") maps to a TYPELESS schema and the 'add type:object when absent' rule would silently wrap it as an object — add-vs-raise is UNDEFINED in the spec and the rule becomes form-dependent (JSON-Schema input wraps typeless per TS, contract input should raise); (c) JSON-Schema non-object root is only tested with type:string, not a representative non-string non-object like type:array.",
+    "Delegation-parity test does not pin that the direct provider compiles the POST-normalization wire schema, not the raw input. For the chosen object-rooted J it passes accidentally; a typeless input (properties with no root type) is never used as a parity case, so the normalize-THEN-compile path is uncovered. No contract-form self-delegation case exists at all (handle-of C vs provider-compile prov (wire-of C)) — only cross-form dual equivalence.",
+    "JSON-Schema input carrying a DEFERRED keyword (minLength/pattern/etc.) is untested — the realistic hand-written-schema case. The util's 'advertise as-is' contract (wire retains the keyword) and the handle's ignore-per-item-011-policy are both unverified, plus the item-011 warn-once/weak-map interaction on the util's fresh-provider-per-call default path is unexercised.",
+    "Contract-mapper edge cases left to implementer improvisation: required-key naming an absent field; single-arm and duplicate or/c; mixed literal+predicate or/c (or/c \"a\" string?) which violates the 'literal datums' precondition and is not a clean enum; and/c has no table row (should raise).",
+    "S5 integer-vs-number decision is deferred but its falsifying boundary is never tested: integer? accepts 5.0 in Racket but item 011's json-integer? is exact-integer?, so using integer? would make the contract accept a value its own derived handle rejects (self-inconsistency). Pin exact-integer? and add a 5.0-rejects test.",
+    "Input discrimination uses hash? which also matches mutable/equal-keyed/string-keyed hashes; a string-keyed hash takes the JSON-Schema branch and the symbol-keyed provider silently mis-validates (every 'required' fails) — the exact silent-total-failure bug item 011's docs warn about. Pin/document hasheq-with-symbol-keys requirement.",
+    "Empty-schema accept path is the most likely place a 'build errors then wrap' bug yields an empty validation-errors (which item 010's guard RAISES) instead of validation-ok — assert the empty-object handle returns validation-ok, not a crash."
+  ]
+}

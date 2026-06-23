@@ -1,0 +1,23 @@
+{
+  "item": "009-stage-s1-demo-and-closeout",
+  "command": "speckit.aide.execute-item",
+  "iteration": 1,
+  "verdict": "approved",
+  "needs_revision": false,
+  "score": "5/5",
+  "summary": "Stage S1 demo + closeout delivered first pass. mcp/core/demo/s1-demo.rkt requires only the item-008 barrel, exercises the four roadmap arms (initialize round-trip, tools/call round-trip, malformed->JSON-RPC error via genuine contract rejection, error-response envelope round-trip). 919 tests pass (908 inherited, +11 new), 0 regressions. Drift checks confirm the canonical jsexpr=? compare and the Arm-3 non-vacuous assertions are live.",
+  "verification": {
+    "raco_make_demo": "exit 0",
+    "racket_demo_standalone": "exit 0",
+    "demo_cwd_independent": "exit 0 from /tmp",
+    "raco_test_demo": "11 passed",
+    "raco_test_full": "919 passed, exit 0 (908 inherited, +11, 0 regressed)",
+    "demo_purity_grep": 0,
+    "mcp_examples_absent": true,
+    "drift_arm1_canonical": "un-pruned expect -> 1/11 fail -> reverted green",
+    "drift_arm3_nonvacuous": "valid name -> guard fires -> 2/11 fail -> reverted green",
+    "malformed_arm_code": -32603,
+    "malformed_arm_shape": "A (plain INTERNAL-ERROR, no shape-B re-wrap)"
+  },
+  "actionable_findings": []
+}

@@ -1,0 +1,21 @@
+{
+  "scale": "1-10 (10 = ship as-is)",
+  "overall_rating": 6,
+  "needs_revision": true,
+  "summary": "Strong spec on all the brief's high-risk areas except one: the malformed-message arm (Arm 3) is vacuous as sketched. Verified by running the spec's own code against the live barrel and fixtures. Round-trip arms, parity-matrix resolution, progress.md line numbers, fixture reuse, and demo-location collision are all verified-correct and above the item-008 bar. One critical blocker, two minor issues.",
+  "verified_correct": [
+    "All 8 r25:/error-encode names resolve through mcp/core/main.rkt; INTERNAL-ERROR == -32603 (ran it).",
+    "All three fixtures exist with claimed shapes; initialize-request.json carries extraUnknownKey in params.",
+    "Round-trip arms 1/2/4 pass against live fixtures: init vs RAW=#f, init vs EXPECT=#t (dropped-key handling correct), tools/call vs RAW=#t, error-response vs RAW=#t.",
+    "No directory collision: mcp/examples/, mcp/demos/, mcp/core/demo/ all absent.",
+    "progress.md line numbers ALL accurate: parity :336, header :41, overview :27, test line :53, boxes :56-62 (:57 already [x]), G1 :298.",
+    "Parity-matrix ambiguity resolved correctly (no roadmap table; edit progress.md:336; partial not done).",
+    "G1 over-claim guard present and correct."
+  ],
+  "key_issues": [
+    "BLOCKER (Arm 3, item.md:540-547,160-168,301-307): the malformed arm is vacuous as sketched. Verified by running the decoder: r25:json->call-tool-request ACCEPTS both malformed inputs the spec proposes -- (hasheq 'method \"tools/call\" 'params (hasheq)) (missing name) AND name=42 (wrong type) -- because h-req (spec-2025-11-25.rkt:76) returns the 'absent sentinel instead of raising, and json->call-tool-request is not contract-out'd on its result. So control reaches the guard (error \"decoder unexpectedly accepted malformed input\") at item.md:545; with-handlers catches THAT, producing code=-32603 message=\"decoder unexpectedly accepted...\". The module+ test (item.md:567-574) asserts only code==-32603 and message non-empty -- both pass on the fabricated error. The test ships GREEN while proving nothing.",
+    "BLOCKER fix: drive rejection through the contract as spec-2025-11-25-test.rkt:219-224 does -- (contract call-tool-request-params/c (json->call-tool-request-params (hasheq 'name 42 ...)) ...) inside with-handlers (requires r25:json->call-tool-request-params + r25:call-tool-request-params/c reachable through the barrel -- not in the spec's only-in list at item.md:211-217, VERIFY). Alternatively use a params-missing/non-hash input which DOES raise (hash-ref contract violation -> -32603) but for the wrong reason. EITHER WAY the module+ test must additionally assert the guard line was NOT reached (e.g. message != guard string).",
+    "MINOR (item.md:511-519,510): the sketched local jsexpr=? omits the [(and (number? a)(number? b)) (= a b)] clause the real comparator has (spec-2025-11-25-test.rkt:54), contradicting the 'same semantics' claim. Doesn't break these fixtures but the claim is inaccurate.",
+    "MINOR (item.md:794-795,769-787): the pre-filled '908 tests passed' baseline appears as fact in the Test-commands-run/Validation-Results template; mark as <to confirm> placeholder so an implementer re-runs rather than copies it."
+  ]
+}

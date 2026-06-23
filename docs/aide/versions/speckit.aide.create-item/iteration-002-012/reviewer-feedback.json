@@ -1,0 +1,9 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "All seven iteration-1 issues are genuinely closed: each has a pinned decision in the Decisions block AND a falsifiable Part-8 regression assertion, cross-checked against the real M3 source. (1) object-root three branches 1a/1b/1c pinned + form-dependent add-vs-raise decided; (2) delegation parity now compiles direct on the post-normalization wire with a typeless-Form-A case + a new contract-form self-delegation case 2b; (3) Form-A deferred-keyword passthrough pinned (wire retains minLength, handle ignores, provider-warnings-for records); (4) absent-required/single/dup/mixed-or/c/and/c edges all pinned; (5) exact-integer? pinned with 5.0-rejects test; (6) hasheq+immutable+symbol-key guard with string-keyed-hash reject; (7) empty-schema asserts validation-ok? explicitly (verified the validation-errors #:guard really raises on empty).",
+    "N-1 (non-blocking, implementability note): or/c arm-classification (all-literal->enum, mixed/predicate->reject, de-dup) presumes recovering the arms of a compiled or/c, but a compiled or/c only exposes flat-contract?/contract-name with no structured arm-decomposition API. Spec's recommended fixed-table/identity recognition avoids this but never states HOW arm classification is done; add one sentence to Implementation Step 3 so the implementer recognizes supported forms by identity/constructor match, not contract-name string parsing. Tests are already correct.",
+    "N-2 (cosmetic nit): the Manual Validation Checklist + Validation Results template still carry a stale 'Dropped-constraint branch verified: and/c -> drop+record OR reject' line (item.md:378,:418), a leftover from iteration 1. Drop+record is superseded everywhere else (Decisions (e): and/c unconditionally rejects). Reword to 'and/c rejected: raises (case 7)'. Does not gate approval."
+  ]
+}

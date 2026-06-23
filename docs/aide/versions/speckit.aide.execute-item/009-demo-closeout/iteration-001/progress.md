@@ -68,8 +68,8 @@
 **Modules:** M3 (Validators), M4 (Schema util), M5a–M5e (Shared).
 
 ### Deliverables
-- ✅ `mcp/core/validators/provider.rkt` — `gen:`-style validator-provider port (item 010: port + result types + closure-in-handle; stub-provider shape test; S1-only, portability-clean)
-- ✅ `mcp/core/validators/from-json-schema.rkt` — Racket-native default (keywords: `type`, `properties`, `required`, `enum`, `items`, `format` for `date-time`/`uri`/`email`) (item 011: collect-all keyword evaluator + located paths + per-compile weak handle→ignored-keyword warnings; deferred/unknown keywords ignore-with-warning; TS-baseline cross-check; S1+port-only, portability-clean)
+- 📋 `mcp/core/validators/provider.rkt` — `gen:`-style validator-provider port
+- 📋 `mcp/core/validators/from-json-schema.rkt` — Racket-native default (keywords: `type`, `properties`, `required`, `enum`, `items`, `format` for `date-time`/`uri`/`email`)
 - 📋 `mcp/core/util/schema.rkt` — contract-or-JSON-Schema normalization (Standard-Schema analogue)
 - 📋 `mcp/core/shared/uri-template.rkt` (M5a) — RFC 6570 subset expand/match
 - 📋 `mcp/core/shared/tool-name-validation.rkt` (M5b)
@@ -83,7 +83,7 @@
 - [ ] URI template expand/match round-trips TS `uriTemplate.test.ts` fixtures (G1)
 - [ ] Tool-name validation matches TS `toolNameValidation` accept/reject set
 - [ ] Schema normalization: contract input and equivalent JSON-Schema input accept/reject same values; wire schema matches
-- [x] Validator keyword coverage: ≥1 accept + 1 reject per `type`/`object`/`required`/`enum`/`string-format`, cross-checked vs TS Ajv baseline; unsupported keywords documented
+- [ ] Validator keyword coverage: ≥1 accept + 1 reject per `type`/`object`/`required`/`enum`/`string-format`, cross-checked vs TS Ajv baseline; unsupported keywords documented
 - [ ] stdio framing (M5e) round-trips multi-message + partial-frame buffering, standalone
 - [ ] Parity rows `validators/*`, `util/schema`, `uriTemplate`, `toolNameValidation`, `metadataUtils`, `auth` marked `partial`
 - [ ] Demo: register schema → validate good/bad; expand+match URI template; encode/decode stdio frame
@@ -333,7 +333,7 @@
 
 ## Parity matrix progression
 
-Per-stage discipline: each stage flips the `core/types/*`, `errors/*`, `validators/*`, transport, role, and auth rows from `partial`→`done` as it fully exercises them; S9 is the certification pass. Tracked via each stage's roadmap Testing/validation criteria (no separate materialized table until the S9 closeout pass). **Current state (after Stage S1):** `core/types/*` and `errors/*` are **`partial`** — the per-revision structs/contracts (items 003/004), the N1 façade (item 005), the guards (item 002), the constants (item 001), and the bidirectional exn↔JSON-RPC error layer (items 006/007) all exist and round-trip TS-SDK fixtures (witnessed by `mcp/core/demo/s1-demo.rkt`), but full cross-SDK conformance exercise is deferred to S9 (§9.1/§9.2). **Item 010 (Stage S2):** the `validators/*` **port** sub-row advances toward `partial` — `mcp/core/validators/provider.rkt` ships the `gen:json-schema-validator-provider` port + closed result types (`validation-ok`/`validation-errors`/`validation-error`) + closure-in-handle, proven by a stub-provider shape test (66 checks) and a restricted-load portability walk; the default-provider/keyword-coverage sub-rows stay unflipped until items 011/017/018 + S9. **Item 011 (Stage S2):** the `validators/*` **default-provider / keyword-coverage** sub-row is now satisfied — `mcp/core/validators/from-json-schema.rkt` implements the port with a collect-all keyword evaluator (`type`/`properties`/`required`/`enum`/`items`/`format` for date-time/uri/email), located error paths, and the ignore-with-warning policy for deferred/unknown keywords recorded in a per-compile weak handle→ignored-keyword map; proven by a keyword-coverage + TS-baseline cross-check test and a restricted-load walk (`raco test mcp/core/validators/` → 300 checks pass, 0 fail). The collection-wide S2 sweep + full conformance still land with items 017/018 + S9, so `validators/*` stays `partial`. All other rows remain `📋` (no source yet). 🚧
+Per-stage discipline: each stage flips the `core/types/*`, `errors/*`, `validators/*`, transport, role, and auth rows from `partial`→`done` as it fully exercises them; S9 is the certification pass. Tracked via each stage's roadmap Testing/validation criteria (no separate materialized table until the S9 closeout pass). **Current state (after Stage S1):** `core/types/*` and `errors/*` are **`partial`** — the per-revision structs/contracts (items 003/004), the N1 façade (item 005), the guards (item 002), the constants (item 001), and the bidirectional exn↔JSON-RPC error layer (items 006/007) all exist and round-trip TS-SDK fixtures (witnessed by `mcp/core/demo/s1-demo.rkt`), but full cross-SDK conformance exercise is deferred to S9 (§9.1/§9.2). All other rows remain `📋` (no source yet). 🚧
 
 ## Intentionally excluded (vision §8) — ❌ / ⏸️
 

@@ -1,0 +1,13 @@
+{
+  "overall_rating": 7,
+  "needs_revision": true,
+  "key_issues": [
+    "Reference path error: header line 6 and item 013 cite core/src/shared/uriTemplate.test.ts, which does not exist; all TS tests live under packages/core/test/shared/ (and test/validators/validators.test.ts), not alongside src/. A Worker following the literal path finds nothing.",
+    "Item 011 claims to mirror TS fromJsonSchema.ts, but that file is a 43-line keyword-free wrapper; the actual keyword validation is done by Ajv/cfWorker (excluded per vision §8). The Racket keyword subset is a net-new design (vision §4.5 collapse), not a mirror — the misframing will confuse the Worker about the source of truth.",
+    "Item 015 says AuthInfo mirrors auth.ts + authUtils.ts, but AuthInfo is actually defined in types/types.ts:435 (token/clientId/scopes/expiresAt?/resource?/extra?); shared/auth.ts is OAuth metadata schemas. The field-surface acceptance test needs the correct source and field list.",
+    "Item 016 (stdio framing) omits three real behaviours of TS ReadBuffer: max-buffer-size enforcement (STDIO_DEFAULT_MAX_BUFFER_SIZE = 10MB, append throws on overflow), CRLF tolerance (\\r$ stripping), and skip-non-JSON-line policy (SyntaxError -> continue). Acceptance test covers only multi-message + partial-frame buffering.",
+    "Item 011 supported keyword subset (type/properties/required/enum/items/format) is narrower than TS validators.test.ts exercises (adds pattern, minLength/maxLength, minimum/maximum, additionalProperties, uniqueItems, default). The 'cross-checked vs TS Ajv baseline' claim is weakened; deferred common keywords should be named explicitly and each policy-tested, not just 'an' unsupported keyword.",
+    "Item 015 M5c claims to mirror metadataUtils.ts, but that file contains only getDisplayName; the reserved-key accessor design actually sits over the S1 constants. Also the reserved-key set lists 5 keys while types/constants.ts defines 8 (adds traceparent/tracestate/baggage trace-context keys, not captured in S1 constants.rkt).",
+    "Item 010 splits the TS single-method jsonSchemaValidator.getValidator into two ops (compile/validate); reasonable and idiomatic but not a 1:1 mirror of validators/types.ts and should be noted for the S9 parity-matrix pass."
+  ]
+}
