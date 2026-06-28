@@ -13,7 +13,7 @@
 >   - `packages/core/src/shared/auth.ts` + `authUtils.ts` — the **token/metadata helpers only** (NOT the OAuth zod schemas in `auth.ts`).
 >   - Test fixtures: `packages/core/test/shared/auth.test.ts`, `authUtils.test.ts`.
 > **Source (S1):** `mcp/core/types/constants.rkt` (the five reserved `_meta` key string constants already exported), `mcp/core/types/spec-2026-07-28.rkt` (the `request-meta` `_meta` envelope, item 004) — M5c round-trips with these.
-> **Status:** 📋 Planned — not started.
+> **Status:** ✅ Complete — both modules + tests delivered; `raco test mcp/core/shared/` → 269 pass (38 metadata-utils + 39 auth + 192 prior).
 
 ---
 
@@ -390,12 +390,14 @@ The **design decisions below are PINNED at spec time** (real choices, not option
 **(g) Restricted-load portability deferred to item 017.** No per-module `module->imports` walk here (consistent with item 014); the collection-wide S2 sweep including both modules is item 017, which also flips the parity rows. **To be updated during implementation.**
 
 **(h) Post-build outcomes (recorded at implementation).**
-- **Require lists as built:** M5c = `(require mcp/core/main.rkt)` [or `…/types/constants.rkt`]; M5d = `(require racket/contract mcp/core/main.rkt)`. Both NO `net/*`, NO subprocess/socket. *(confirm)*
-- **Exact check counts:** `raco test mcp/core/shared/` → **TBD** (new metadata-utils + auth checks added to the existing 192 from items 013+014). New suites alone: metadata-utils-test = **TBD**, auth-test = **TBD**. Sibling suites unaffected: `raco test mcp/core/validators/` → 300; `raco test mcp/core/util/` → 102. *(confirm)*
-- **`raco make`:** both modules → exit 0, clean. *(confirm)*
-- **`get-display-name` input form:** hash (confirmed); no struct overload shipped. *(confirm)*
-- **`resource` form:** string (confirmed); no `net/url`. *(confirm)*
-- **No `(module+ test …)`** in either module; tests under `test/`. *(confirm)*
+- **Require lists as built:** M5c = `(require "../main.rkt")` (relative S1 barrel — `mcp/core/main.rkt` is not a registered collection path; corrected to the codebase convention used by `util/schema.rkt`). M5d = `(require racket/contract "../main.rkt")`. Both NO `net/*`, NO subprocess/socket (grep clean — the only `net/`/`subprocess` hits are doc-block comments).
+- **Exact check counts:** `raco test mcp/core/shared/` → **269 passed / 0 failed** (192 from items 013+014 + the two new suites). New suites alone: metadata-utils-test = **38**, auth-test = **39**. Sibling suites unaffected: `raco test mcp/core/validators/` → 300; `raco test mcp/core/util/` → 102.
+- **`raco make`:** both modules → exit 0, clean (no warnings).
+- **`get-display-name` input form:** symbol-keyed hash (confirmed); no struct overload shipped.
+- **`resource` form:** string (confirmed); no `net/url`.
+- **No `(module+ test …)`** in either module; tests under `mcp/core/shared/test/`.
+- **`make-auth-info` contract mechanism:** `define/contract` (NOT `contract-out`). Rationale — `contract-out` only checks at the module boundary, so the internal `json->auth-info → make-auth-info` path would bypass it and the C2 non-string-token rejection test would fail; `define/contract` checks every call (internal included), keeping the decoder's type-rejection real.
+- **S1 round-trip helpers:** `json->request-meta` / `request-meta->json` are re-exported `r26:`-prefixed via `types/main.rkt`, so the Part-4 envelope test calls `r26:json->request-meta` / `r26:request-meta->json`.
 
 ---
 

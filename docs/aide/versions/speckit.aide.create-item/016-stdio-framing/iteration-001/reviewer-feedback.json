@@ -1,0 +1,14 @@
+{
+  "overall_rating": 7,
+  "needs_revision": true,
+  "key_issues": [
+    "CRITICAL: Part 6 default-cap test does two consecutive check-exn on the same rb; the first overflow CLEARS the buffer (clear-before-throw), so the second check-exn appends to an empty buffer and does NOT throw -> test fails as written. Collapse to a single (check-exn #rx\"ReadBuffer exceeded maximum size\" ...) after the fill, or rebuild a fresh filled buffer for the message-regex assertion.",
+    "CRITICAL: skip-vs-throw factoring is ambiguous. Spec says deserialize-message is 'used internally by read-message!' but Impl Steps route read-message! through try-parse-json-line. A literal (with-handlers ([exn:fail? skip]) (deserialize-message line)) would WRONGLY SKIP the invalid-envelope case -- the exact pinned defect. Pin ONE mechanism: read-message! uses try-parse-json-line + envelope-check OUTSIDE the parse handler, OR deserialize-message raises two distinguishable exn types and read-message! catches only the parse-failure one.",
+    "MEDIUM: json-object? is private to guards.rkt and NOT re-exported by the S1 barrel (verified). M5e cannot import the predicate the spec names for serialize-message's contract / deserialize-message's return; it must define its own (and/c hash? immutable? hash-eq?). State which, and whether a non-object (mutable / string-keyed hash) is rejected at the boundary.",
+    "MEDIUM: G1 divergence undocumented -- TS deserializeMessage returns the Zod-normalized (nested-unknown-keys-STRIPPED) object; the Racket port returns the raw read-json jsexpr unchanged. Differs for messages carrying extra nested keys. Document the choice and/or pin raw-preserve with a test.",
+    "MEDIUM: no test that a JSON string value containing an embedded newline (encoder escapes it as \\n, not raw byte 10) round-trips as ONE frame -- the core framing premise is untested. Add it (plus an embedded-\\r variant).",
+    "MEDIUM: multibyte-split test can be vacuous -- assert a real >=0x80 byte exists in the serialized bytes before splitting (jsexpr->string emits raw UTF-8 today but could escape), and split relative to a located lead byte (0xC3), not a blind quotient.",
+    "MEDIUM: valid-JSON scalar lines (42\\n, true\\n, null\\n, \\\"hi\\\"\\n) are tested only via deserialize-message, not through read-buffer-read-message!. They parse cleanly (not skipped) yet fail the envelope -> must RAISE. Add a read-message! check-exn for a scalar line. Note read-json on \"null\" returns symbol 'null (parse success -> raise) vs empty/whitespace -> eof -> skip.",
+    "LOW: matches-TS-but-untested edges -- invalid UTF-8 in a complete line (both skip), deserialize-message on non-JSON raising, empty-chunk / single-shot-over-max / max-size-0 appends, non-JSON CRLF line still skipped. Inherited S1 gap: id:1.0 accepted by TS (z.number().int) but rejected (->raise) by Racket exact-integer? -- inherited, not M5e's to fix, worth a Decisions note."
+  ]
+}

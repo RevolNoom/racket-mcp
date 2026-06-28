@@ -1,0 +1,14 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "All 5 critical (C1-C5) and 7 suggested (S1-S7) issues from iteration-001 are genuinely closed — each appears in the pinned design AND a matching acceptance criterion AND an explicit test, the three layers that must agree for a fix to survive into implementation.",
+    "C1 (annotations-null crash) closed: pinned code binds annotations and gates rung 2 on (hash? annotations); tests assert (json-null) and non-hash annotations fall through to name without raising; (require json) added for (json-null).",
+    "C2 (decode-path) closed: json->auth-info decode-reject discipline pinned with security rationale; Part 7 gives 4 check-exn (missing token/clientId, non-string token, non-list scopes).",
+    "C3 (unfalsifiable contract) closed: make-auth-info contracted; Part 8 requires >=3 check-exn:fail:contract incl. negative expires-at justifying exact-nonnegative-integer?.",
+    "C4 (round-trip vacuity) closed: Part 6 literal-wire decode (hand-built hasheq, not via encoder) proves the decoder reads camelCase clientId/expiresAt.",
+    "C5 (Part-4 fixture) closed AND independently verified against S1 decoders: json->implementation requires only name+version (h-req) so (hasheq 'name \"c\" 'version \"1\") passes; json->client-capabilities wraps raw object so (hasheq) passes; fixture exercises trace-key passthrough, not an incidental decode crash. Now asserts traceparent+tracestate+baggage all survive (S7).",
+    "S1-S6 closed: progressToken check-false (two-notions boundary); prefixed-key string/symbol equivalence on LOG-LEVEL-META-KEY; meta-ref no-default -> #f probe semantics; expires-at=0 + empty-extra falsy-omit guards; non-string-title divergence honestly relabeled (dropped 'verbatim TS' claim); missing-name check-exn.",
+    "Non-blocking nits only: decode-path bad-expiresAt is covered transitively via make-auth-info's contract (adequate; one extra end-to-end check-exn optional); round-trip proves struct-level equality not byte-level JSON serialization (correct scope). Neither gates approval."
+  ]
+}

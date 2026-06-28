@@ -1,0 +1,15 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "RESOLVED C1 (default-cap double-check-exn): Part 6 now uses a SINGLE (check-exn #rx\"ReadBuffer exceeded maximum size\" ...) after filling to exactly 10 MB, with an explicit clear-before-throw rationale and a 'rebuild a fresh buffer if you want both assertions' note. Verified: (quotient 10485760 1048576)=10 fills to exactly 10MB, the 11th append raises. Correct.",
+    "RESOLVED C2 (skip-vs-throw factoring): pinned to ONE factoring (try-parse-json-line confines the parse handler; envelope check + error sit OUTSIDE it; read-message! does NOT route through deserialize-message), with a FORBIDDEN-PATTERN box forbidding the broad exn:fail? catch. The pinned cond uses the ok? flag (not val-truthiness), which is correct.",
+    "RESOLVED M3 (json-object? sourcing): VERIFIED public at types.rkt:73 and reachable through the main.rkt barrel; my iteration-001 claim (private to guards.rkt) was wrong. Spec now explicitly distinguishes the public types.rkt binding from guards.rkt's private same-named copy, with a local-define fallback.",
+    "RESOLVED M4 (G1 raw-preserve): Decision (j) documents the divergence (Racket returns raw read-json jsexpr; TS returns the Zod-stripped object) and Part 1 pins it with a nested-unknown-key test; correctly notes an extra TOP-LEVEL key still raises.",
+    "RESOLVED M5 (embedded newline): Part 3 adds an embedded-\\n/\\r-in-string round-trip with byte-count assertions (exactly one raw byte 10, zero raw byte 13); the encoder-premise note marks it VERIFIED. Correct by JSON escaping rules.",
+    "RESOLVED M6 (multibyte non-vacuity): Part 3 now locates the 0xC3 lead byte via for/first, asserts it exists, and splits right after it — genuinely exercises the codepoint boundary instead of a blind quotient.",
+    "RESOLVED M7 (scalar-line raise via read-message!): Part 4 adds check-exn for 42/true/\"hi\"/null through read-message!, with the correct 'null'-parse-success-vs-eof-skip note.",
+    "RESOLVED L8 (edge notes/tests): added invalid-UTF-8-skipped, non-JSON-CRLF-skipped, deserialize-message-on-non-JSON-raises, single-shot-over-max, max-size-0, empty-chunk-no-op; the inherited id:1.0 S1 divergence is documented in Decision (k) with explicit 'do not test-as-correct / do not work around' guidance.",
+    "SUGGESTED (non-blocking, new): add #\"false\\n\" to the Part 4 scalar-raise set. JSON false -> Racket read-json -> #f, which COLLIDES with try-parse-json-line's (values #f #f) failure sentinel; it is the one scalar that distinguishes a correct ok?-flag implementation from a buggy val-truthiness one (which would wrongly SKIP it). The pinned code is correct, but no test pins this exact trap. Also: the try-parse-json-line NOTE 'only eof counts as a failure' reads slightly loosely vs the body's 'raises OR eof OR trailing-garbage' failure list — minor wording, harmless."
+  ]
+}

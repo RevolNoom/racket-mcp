@@ -1,0 +1,12 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [],
+  "resolved": [
+    "C1 FIXED: `raco test mcp/core/demo/s2-demo.rkt` added to Acceptance (:28) and Testing Strategy (:202); raco test on a single file runs its module+ test submodule, so the 14 assertions now actually execute (non-vacuous, matching item 009).",
+    "C2 FIXED: Edit E (:188-190) flips the Stage S2 section header (:66) in addition to the overview row (Edit A, :28); grep `## Stage S2` is unambiguous (single match, no S2a/S2b). Both status sites now flipped, matching S1 two-flip convention. Backed by Acceptance :31 + Completion Reminder step 3.",
+    "Minors addressed: s1-demo line count 163 (:43); '≥671' -> 'check count ≥ item-017 baseline' (:29); arm-1 message hardened with #rx\"name\" (:152)."
+  ],
+  "regression_check": "Clean. Five API shapes byte-identical to iteration-001 and still accurate. Edits A-E non-contradictory and complete the closeout. R5 scope guard intact (no S3+ touch, no unchecking, parity rows left partial).",
+  "optional_nonblocking": "Arm-1 could assert exact path '() and exact message instead of #rx\"name\"+list?, but current form is sufficient."
+}

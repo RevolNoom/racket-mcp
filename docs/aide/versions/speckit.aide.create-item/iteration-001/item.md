@@ -1,822 +1,286 @@
-# Work Item 008: Core barrels + restricted-load portability test
+# Work Item 015: `_meta` metadata utils + shared `AuthInfo` (M5c + M5d)
 
-> **Queue:** `docs/aide/queue/queue-001.md` — Item 008
-> **Stage:** S1 (Foundation: types, constants, guards, errors — L0 part 1)
-> **Module:** M1 (Types) + M2 (Errors) — **public-surface barrels** (`mcp/core/types/main.rkt`,
->   `mcp/core/main.rkt`), NOT a new module's internals. No new types, no new errors — this item
->   curates and re-exports what items 001–007 already built, and adds the Portability NFR's
->   load-time proof.
-> **Source vision:** `docs/aide/vision.md` line 214 (Portability NFR — "Core types/protocol must
->   load without pulling in subprocess/socket modules, so they remain usable in restricted
->   contexts (mirrors TS runtime-neutral root rule)").
-> **Source roadmap:** `docs/aide/roadmap.md` Stage S1 → Deliverables line 85
->   (`mcp/core/types/main.rkt` and `mcp/core/main.rkt` barrels — explicit `provide` curated
->   public surface (architecture §1.3 public/internal boundary)) and the Testing/validation
->   criteria line 96 ("Loading `mcp/core/types` and `mcp/core/errors.rkt` pulls in **no**
->   subprocess/socket module (Portability NFR — verify with a load test in a restricted
->   namespace)"). Also Stage-summary table line 418 (S1 row: "Wire structs round-trip TS
->   fixtures; **restricted-load test**").
-> **Source architecture:** `docs/aide/architecture.md` **§1.3 line 52** (Public/internal
->   boundary — "Each sub-collection exposes a curated public API via its `main.rkt` (explicit
->   `provide`). Internal modules `provide` only to siblings inside the collection. Non-portable
->   facilities (subprocess, sockets) live in `transport/` adapters and named submodules so
->   L0–L2 stay runtime-neutral. Mirrors TS `core/public` vs internal barrel."); **§4.1 line 327**
->   ("Runtime-neutral core. L0–L2 import no subprocess/socket modules; all non-portable I/O
->   confined to L1 adapters (Portability NFR)."); **§4.1 line 328** (the error-to-wire boundary,
->   already cited by item 007 — this item's barrel re-exports that boundary's public surface);
->   §3.3 line 320 (Module-system row: "`mcp` collection + sub-collections; `main.rkt` public
->   barrels … Mirrors TS public/internal boundary + ports-and-adapters").
-> **Reference impl:** MCP TypeScript SDK v2 at `typescript-sdk/` — the TS package's
->   `core/public`-vs-internal barrel split (architecture §1.3's "Mirrors TS `core/public` vs
->   internal barrel"); there is no single TS file this item ports line-for-line (a barrel
->   `index.ts`-style re-export is a packaging convention, not a runtime algorithm) — the
->   authoritative target is the **architecture's own §1.3 contract**, satisfied by curating the
->   already-curated `provide` surfaces of items 001–007 into two new files.
-> **Delivered siblings (the FORMAT + rigor bar):**
->   `docs/aide/items/007-error-decode-path.md` (✅ delivered, the DECODE half — match its format,
->   header depth, build-contract table style, and Decisions discipline) and
->   `docs/aide/items/006-error-hierarchy-and-encode-path.md` (✅ delivered, the ENCODE half).
->   Both are barrel CONSUMERS this item re-exports; their structural rigor (exact line-anchored
->   citations, enumerated build-contract tables, concretely-testable acceptance criteria) is the
->   bar this spec meets.
-> **Status:** Specified (not yet implemented). This is the LAST item before Item 009's closeout
->   demo; on delivery it completes Stage S1's M1+M2 deliverable list except the demo script.
+> **Queue:** `docs/aide/queue/queue-002.md` — Item 015
+> **Stage:** S2 (Foundation: validators, schema, shared utilities — L0 part 2)
+> **Modules:** **M5c** (`_meta` metadata utils) — `mcp/core/shared/metadata-utils.rkt`; **M5d** (shared auth) — `mcp/core/shared/auth.rkt`. Two cohesive shared modules grouped by size + cohesion: M5c is the display-name helper + the reserved-`_meta`-key surface (mirroring TS `metadataUtils.ts` + `types/constants.ts`); M5d is the `AuthInfo` struct + token/metadata helpers (mirroring the `AuthInfo` shape at TS `types/types.ts:435` + the non-OAuth helpers). Both have **NO consumer inside S2** — they are built ahead of their consumers (M5c → high-level server M12b/S6b `register-tool`; M5d → S8 client + server auth).
+> **Source vision:** `docs/aide/vision.md` §6 (Portability NFR — core L0–L2 loads without subprocess/socket; both are pure non-I/O modules), G1 (wire/behaviour parity with the TS SDK — the display-name precedence, the eight reserved `_meta` keys, and the `AuthInfo` field surface must match TS).
+> **Source roadmap:** `docs/aide/roadmap.md` Stage S2 → Deliverables (`mcp/core/shared/metadata-utils.rkt` (M5c), `mcp/core/shared/auth.rkt` (M5d)) + Testing/validation criterion (parity rows `metadataUtils`, `auth` → `partial`).
+> **Source architecture:** `docs/aide/architecture.md` M5c/M5d (shared utils; depend on S1 only), §1.3 (public/internal boundary, explicit `provide`), §4.1 (Runtime-neutral core L0–L2 imports no subprocess/socket).
+> **Reference impl (authoritative):** MCP TypeScript SDK v2 at `typescript-sdk/`:
+>   - `packages/core/src/shared/metadataUtils.ts` — the 26-line `getDisplayName` (precedence `title` → `annotations.title` → `name`, with the empty-string-title fallthrough).
+>   - `packages/core/src/types/constants.ts` — the **eight** reserved `_meta` keys (the five S1 captured **plus** the three W3C trace-context keys `traceparent` / `tracestate` / `baggage`, SEP-414).
+>   - `packages/core/src/types/types.ts:435` — the `AuthInfo` interface (`token`, `clientId`, `scopes`, optional `expiresAt`, optional `resource` URL, optional `extra`).
+>   - `packages/core/src/shared/auth.ts` + `authUtils.ts` — the **token/metadata helpers only** (NOT the OAuth zod schemas in `auth.ts`).
+>   - Test fixtures: `packages/core/test/shared/auth.test.ts`, `authUtils.test.ts`.
+> **Source (S1):** `mcp/core/types/constants.rkt` (the five reserved `_meta` key string constants already exported), `mcp/core/types/spec-2026-07-28.rkt` (the `request-meta` `_meta` envelope, item 004) — M5c round-trips with these.
+> **Status:** 📋 Planned — not started.
 
 ---
 
 ## Description
 
-Implement the two **curated public-surface barrels** the architecture's public/internal
-boundary (§1.3 line 52) requires for the `mcp/core/types/` and `mcp/core/` sub-collections, and
-add the **restricted-namespace portability load test** the roadmap's Portability NFR (line 96)
-demands but which no prior item has yet exercised (items 001–007 each asserted their OWN
-`require` list was subprocess/socket-free; this item is the first to assert it **transitively**,
-end-to-end, from the public entry point a downstream consumer would actually `require`).
+Implement two cohesive shared modules for `racket-mcp`, both importing **only S1** (types M1 + errors M2) and both pure non-I/O (no subprocess, no socket).
 
-Three deliverables:
+### (1) `mcp/core/shared/metadata-utils.rkt` (M5c)
 
-1. **`mcp/core/types/main.rkt`** — a barrel re-exporting the ENTIRE already-curated public
-   surface of items 001–005: `constants.rkt` (item 001), `guards.rkt` (item 002),
-   `spec-2025-11-25.rkt` (item 003), `spec-2026-07-28.rkt` (item 004), and `types.rkt` (item 005,
-   the N1 normalized-superset façade). This is M1's `core/public`-equivalent barrel
-   (architecture §1.3).
-2. **`mcp/core/main.rkt`** — the top M1+M2 barrel: re-exports `mcp/core/types/main.rkt` (deliverable
-   1) PLUS `mcp/core/errors.rkt` (items 006 ENCODE + 007 DECODE). This is the single `require`
-   target a downstream module (S2's validators, S3's protocol engine, or any external consumer)
-   uses to pull in "all of Stage S1's public surface" without knowing the internal module
-   layout — the architecture's "curated public API via its `main.rkt`" contract (§1.3) applied
-   one level up.
-3. **The restricted-namespace portability load test** — a new test asserting that requiring
-   `mcp/core/types/main.rkt` and `mcp/core/main.rkt` (the barrels just built) in a fresh,
-   restricted Racket namespace pulls in, **transitively**, NO module from a banned
-   subprocess/socket set (`racket/system`, `racket/port`'s subprocess-spawning bindings,
-   `racket/tcp`, `racket/udp`, and the `net/...` family). This is the first item to walk the
-   FULL transitive import graph from the public entry point, closing the Portability NFR gap
-   left open by every prior M1/M2 item (each of which only inspected its OWN direct `require`
-   list by hand — see item 006 AC "Portability… requires ONLY racket/base, racket/contract, and
-   types/constants.rkt" and item 007 AC "Portability… unchanged: errors.rkt still requires
-   ONLY…" — neither mechanically verified the TRANSITIVE closure).
+Mirrors TS `metadataUtils.ts` + the reserved-`_meta`-key portion of `types/constants.ts`. Two responsibilities:
 
-A fourth, smaller deliverable folded into the test suite: **a negative test proving the barrels
-are curated, not blanket** — asserting a real internal-only binding from the underlying modules
-is NOT re-exported by the barrel that wraps it. This is the operational meaning of "curated
-public-surface barrel" (architecture §1.3's "Internal modules `provide` only to siblings inside
-the collection") — a barrel that accidentally leaks an internal helper has failed its one job.
+**(1a) `get-display-name`** — the display-name precedence helper. TS `getDisplayName(metadata) → string`:
 
-### The barrel re-export mechanism — concrete decision (read before implementing)
+1. if `title` is **not `undefined` and not `''`** → return `title`;
+2. else if `annotations.title` is present **and truthy** (tools only) → return `annotations.title`;
+3. else fall back to `name`.
 
-The queue text floats two options: "(NOT `(provide (all-from-out ...))` blanket re-export …
-OR it should be a hand-picked list)". **DECISION for this item: use
-`(provide (all-from-out "module.rkt") ...)` per underlying module — NOT a hand-picked
-binding-by-binding list.** Justification, grounded in what the source files actually do (verified
-by reading each module's own `provide` clause during spec-writing):
+The **empty-string-title fallthrough** is load-bearing: a `title` of `""` is treated as absent (rung 1 fails) and the function falls through to `annotations.title` then `name`. The high-level server (M12b / S6b `register-tool`) needs this.
 
-- **Every one of items 001–007's modules already enforces curation at its OWN boundary.**
-  `constants.rkt` (item 001), `guards.rkt` (item 002), `spec-2025-11-25.rkt` (item 003),
-  `spec-2026-07-28.rkt` (item 004), `types.rkt` (item 005), and `errors.rkt` (items 006+007) each
-  ship an explicit, hand-curated `(provide …)` / `(provide (contract-out …))` block — NONE of
-  them uses `(provide (all-defined-out))` (verified: `spec-2025-11-25.rkt:106–256` is a single
-  hand-enumerated list ending in a closing paren before the scalar-contract definitions begin;
-  `errors.rkt:72–83` and `errors.rkt:85–106` are two explicit lists; `types.rkt:72–73`, `85–86`,
-  and `1319`+ are explicit lists; `guards.rkt:30–35` and `constants.rkt:8–31` are explicit
-  lists). So `(all-from-out "spec-2025-11-25.rkt")` re-exports EXACTLY that module's own curated
-  list — it does NOT additionally expose `json-object?`, `h-opt`, `h-req`, `put`, `put!`,
-  `opt-map`, `opt-list`, `req-list`, or `split-loose` (the genuinely internal helpers documented
-  at `spec-2025-11-25.rkt:47` "Internal wire helpers (NOT provided, except `absent`)" and never
-  listed in the `provide` block at lines 106–256). The curation work is ALREADY DONE at the leaf
-  level; a per-module `all-from-out` does not undo it.
-- **A hand-picked list at the barrel level would be pure duplication with a parity hazard.**
-  Re-typing every one of `spec-2025-11-25.rkt`'s ~150 provided identifiers (the file's `provide`
-  block alone spans `spec-2025-11-25.rkt:106–256`, ~150 lines) into `types/main.rkt` would (a)
-  duplicate ~150 names that must be kept in lock-step with every future addition to that module
-  (a drift hazard exactly like the one item 003's own Decisions section warns against for
-  duplicate type definitions), and (b) provide ZERO additional curation benefit, since the leaf
-  module already decided what is public. The risk of a hand-picked barrel list silently going
-  stale (a future item 0XX adds a struct to `spec-2026-07-28.rkt`'s `provide` and the barrel
-  list is never updated) is strictly worse than the risk `all-from-out` carries (none — it always
-  tracks the leaf's current curated surface).
-- **Per-module granularity, not a single blanket `all-from-out` across the whole directory.**
-  The decision is `(provide (all-from-out "constants.rkt") (all-from-out "guards.rkt")
-  (all-from-out "spec-2025-11-25.rkt") (all-from-out "spec-2026-07-28.rkt")
-  (all-from-out "types.rkt"))` — five explicit per-file `all-from-out` clauses, not a single
-  wildcard. This keeps the barrel's `require`/`provide` pairing legible (each `require` line has
-  a corresponding `all-from-out` for THAT module) and means a future module added to
-  `mcp/core/types/` does NOT automatically appear in the barrel — a new module must be
-  deliberately added to both the `require` and the `provide` clause, which is itself a
-  curation gate at the barrel-authoring level (a human decides "yes, M1 grows a 6th public
-  module" rather than it happening by directory-globbing).
-- **`mcp/core/main.rkt` follows the identical pattern one level up:**
-  `(provide (all-from-out "types/main.rkt") (all-from-out "errors.rkt"))` — two clauses, M1's
-  already-curated barrel plus M2's already-curated errors module.
-- **Architecture §1.3 grounding.** "Each sub-collection exposes a curated public API via its
-  `main.rkt` (explicit `provide`)" is satisfied: the barrel's `provide` clause IS explicit (it
-  names exactly which sibling modules' surfaces compose the barrel), even though each clause is
-  an `all-from-out` rather than a binding list. "Internal modules `provide` only to siblings
-  inside the collection" is satisfied because the *leaf* modules already gate internal helpers
-  out of their own `provide` — the barrel inherits that gate for free and adds no new leak
-  surface (proven by the negative test in deliverable 4).
+**(1b) Reserved `_meta` key surface** — the constants for the reserved keys plus accessors/setters that respect the reserved-key namespace and **round-trip with the S1 `_meta` envelope** (`request-meta`, item 004, `2026-07-28` spec). Reconcile the **5-vs-8 discrepancy** (below).
 
-> **Naming collision check (verify during implementation, not assumed here).** Before writing
-> `mcp/core/types/main.rkt`'s `provide`, grep each of the five leaf modules' provided-identifier
-> lists for a same-name collision (e.g. does `spec-2025-11-25.rkt` and `spec-2026-07-28.rkt` both
-> provide a binding literally named `tool/c` or `resource/c`?). Items 003/004 are PER-REVISION
-> modules with revision-specific names for many shapes, but some scalar contracts may coincide
-> in name with `types.rkt`'s façade-level redefinitions (`types.rkt:75–86` redefines
-> `role/c`/`cursor/c`/`progress-token/c`/etc. as façade-level aliases — `types.rkt:77`
-> `(define progress-token/c r25:progress-token/c)` aliases item 003's value but under the SAME
-> exported name `progress-token/c` that `spec-2025-11-25.rkt` itself also provides at line 112).
-> `all-from-out` on BOTH `spec-2025-11-25.rkt` and `types.rkt` in the same `provide` form is a
-> **compile-time "name clashes" error** if both export an identifier of the same name — this WAS
-> found during spec research (`progress-token/c`, `request-id/c`, `role/c`, `cursor/c`,
-> `logging-level/c`, `task-status/c` all appear in BOTH `spec-2025-11-25.rkt`'s own provide list
-> AND are redefined/re-provided by `types.rkt`). **Resolution required during implementation:**
-> use `(except-out (all-from-out "spec-2025-11-25.rkt") progress-token/c request-id/c …)` on the
-> spec-2025-11-25/spec-2026-07-28 clauses for the names `types.rkt` re-defines at the façade
-> level (so the façade's union-typed alias wins, matching the architecture's N1 intent that
-> handlers see the FAÇADE's version-agnostic contract, not the per-revision one) — OR rename at
-> the barrel boundary with `(rename-out …)` if BOTH the per-revision and façade versions must
-> remain independently reachable. **The implementer must run `raco make` on the draft barrel,
-> read the exact "all-from-out: name clashes" error (if any), enumerate every colliding
-> identifier it reports, and resolve each via `except-out`/`rename-out` before this item is
-> done** — this is exactly the kind of concrete blocker `raco make`'s diagnostics surface
-> immediately (this environment's `raco` is NOT broken — see §Testing Prerequisites — so this
-> is a real, runnable check, not a hypothetical).
+### (2) `mcp/core/shared/auth.rkt` (M5d)
+
+The **`AuthInfo` struct** (the shape at TS `types/types.ts:435`) + token/metadata **helpers** (the non-OAuth helpers from `shared/auth.ts` + `authUtils.ts`). Field surface to mirror **exactly**: `token`, `clientId`, `scopes`, optional `expiresAt`, optional `resource` (a URL), optional `extra`. This is the shared struct the S8 client + server auth both consume. **NO OAuth logic here** — struct + helpers only (the OAuth zod schemas in TS `auth.ts` are out of scope; they belong to S8/M14).
 
 ---
 
-## The build contract — what each new file must export (enumerate ALL)
+### M5c framing — `get-display-name` (read carefully)
 
-### Part A — `mcp/core/types/main.rkt`
+**Input form — PINNED: symbol-keyed JSON-object hash (the wire/duck-typed form).** TS `getDisplayName` is **duck-typed** over an object exposing `.title`, `.annotations?.title`, `.name`. The Racket port operates on the **symbol-keyed `json-object?` hash** — the form `read-json` already produces everywhere in this codebase (every S1 `…->json` emits one) and the form `tool->json` / `resource->json` / `prompt->json` produce. This is chosen over a struct-dispatch zoo (over `base-metadata` / `tool` / `resource` / `resource-template` / `prompt` / `implementation`) because:
 
-| Requires | Provides | Source module's own curation |
-|---|---|---|
-| `"constants.rkt"` | `(all-from-out "constants.rkt")` | `constants.rkt:8–31` — protocol versions, JSONRPC-VERSION, 9 error codes, 5 `_meta` keys |
-| `"guards.rkt"` | `(all-from-out "guards.rkt")` | `guards.rkt:30–35` — 5 predicates, no batch guard (J3) |
-| `"spec-2025-11-25.rkt"` | `(all-from-out "spec-2025-11-25.rkt")` MINUS any name `types.rkt` re-defines at façade level (resolve via `except-out`, see naming-collision note above) | `spec-2025-11-25.rkt:106–256` — ~150 bindings: sentinel/helpers, scalar contracts, every struct+contract+json-codec pair for the 2025-11-25 revision, the specialized `make-url-elicitation-required-error`/`url-elicitation-required-error?`, the aggregate union contracts |
-| `"spec-2026-07-28.rkt"` | `(all-from-out "spec-2026-07-28.rkt")` MINUS any façade-shadowed name | `spec-2026-07-28.rkt:111`+ — the RC revision's equivalent surface incl. `_meta` envelope types |
-| `"types.rkt"` | `(all-from-out "types.rkt")` | `types.rkt:72–73`, `85–86`, `1319`+ — `absent`/`absent?`/`present?`/`json-object?`/`revision/c`, shared scalar contracts (façade-level), every `facade-*` struct + contract + normalize/denormalize pair, the dispatch table accessor `dispatch-for` (if provided — verify during implementation), the specialized façade error constructors (`make-facade-url-elicitation-required-error` etc., cited by item 007 Dependencies at `types.rkt:1176–1178`/`1244–1246`) |
+- it mirrors the TS duck-typed object **1:1** (`(hasheq 'name "n" 'title "t" 'annotations (hasheq 'title "a"))`);
+- it round-trips with the wire form (the JSON the server advertises);
+- it keeps the tests light (no need to construct a full multi-field `tool` struct just to exercise the `annotations.title` rung);
+- it needs no struct import, so the rung-2 (`annotations.title`) case is reachable without S1's `tool` constructor arity.
 
-**Exact expected `provide` form** (the new file's entire body, modulo the collision resolution
-above):
+The precedence reads `(hash-ref md 'title #f)`, then `(hash-ref (hash-ref md 'annotations (hasheq)) 'title #f)`, then `(hash-ref md 'name)`:
 
 ```racket
-#lang racket/base
-(require "constants.rkt" "guards.rkt" "spec-2025-11-25.rkt" "spec-2026-07-28.rkt" "types.rkt")
-(provide (all-from-out "constants.rkt")
-         (all-from-out "guards.rkt")
-         (all-from-out "spec-2025-11-25.rkt")   ; or (except-out (all-from-out …) …) per collision note
-         (all-from-out "spec-2026-07-28.rkt")   ; or (except-out (all-from-out …) …) per collision note
-         (all-from-out "types.rkt"))
+;; (get-display-name md) -> string?   ; md : symbol-keyed json-object hash
+(define (get-display-name md)
+  (define title (hash-ref md 'title #f))
+  (cond
+    [(and (string? title) (not (string=? title ""))) title]          ; rung 1: non-empty title
+    [(let ([at (hash-ref (hash-ref md 'annotations (hasheq)) 'title #f)])
+       (and (string? at) (not (string=? at "")) at))]                ; rung 2: annotations.title (tools)
+    [else (hash-ref md 'name)]))                                     ; rung 3: name
 ```
 
-No new `define`s, no new structs, no new contracts — this file is a pure re-export barrel (a
-"named module" whose entire body is `require` + `provide`).
+> **Empty-string-title fallthrough (PINNED).** TS checks `metadata.title !== undefined && metadata.title !== ''`. A `title` of `""` is **absent**, so `{name:'n', title:''}` → `'n'`, and `{name:'n', title:'', annotations:{title:'a'}}` → `'a'`. Port this exactly — `(string=? title "")` must fall through, NOT return `""`. Do the same empty-string guard on `annotations.title` (TS's `annotations?.title` is truthy-tested, so `''` is falsy and falls through to `name`).
 
-### Part B — `mcp/core/main.rkt`
+> **`name` is required; absence is a caller bug (PINNED — S1 domain).** TS types `name: string` as required on `BaseMetadata`; if `md` has no `'name` key, `(hash-ref md 'name)` raises (no default). This matches TS's static contract (a metadata object without `name` is ill-typed). Document the input domain ("a metadata object always carries `name`"); do NOT invent a `""`/`#f` fallback for missing `name` — that would diverge from TS and silently mask a malformed object. (Mirrors item 014's "input domain documented, contract error surfaces" resolution.)
 
-| Requires | Provides |
-|---|---|
-| `"types/main.rkt"` (Part A's barrel) | `(all-from-out "types/main.rkt")` |
-| `"errors.rkt"` (items 006+007) | `(all-from-out "errors.rkt")` |
+> **Struct-convenience overload is OUT of scope (PINNED — do NOT add).** Do not add a parallel `get-display-name` that dispatches on the S1 `tool`/`resource`/`prompt` structs. M12b can call `(get-display-name (tool->json t))` (or build a 3-key hash) at its call site. A struct-dispatch overload over six heterogeneous struct types is drift-prone and unnecessary; if a future item proves M12b needs a struct entry point, that item adds it. Keep ONE surface: the hash form.
 
-**Exact expected `provide` form:**
+### M5c framing — reserved `_meta` keys + the 5-vs-8 reconciliation (read carefully)
+
+**The discrepancy (flag, do NOT lose).** TS `types/constants.ts` defines **eight** reserved `_meta` keys:
+
+| # | TS constant | Key string | Captured in S1? | Source |
+|---|---|---|---|---|
+| 1 | `PROTOCOL_VERSION_META_KEY` | `io.modelcontextprotocol/protocolVersion` | ✅ `PROTOCOL-VERSION-META-KEY` (`constants.rkt:61`) | spec |
+| 2 | `CLIENT_INFO_META_KEY` | `io.modelcontextprotocol/clientInfo` | ✅ `CLIENT-INFO-META-KEY` (`constants.rkt:62`) | spec |
+| 3 | `CLIENT_CAPABILITIES_META_KEY` | `io.modelcontextprotocol/clientCapabilities` | ✅ `CLIENT-CAPABILITIES-META-KEY` (`constants.rkt:63`) | spec |
+| 4 | `LOG_LEVEL_META_KEY` (deprecated) | `io.modelcontextprotocol/logLevel` | ✅ `LOG-LEVEL-META-KEY` (`constants.rkt:64`) | spec |
+| 5 | `RELATED_TASK_META_KEY` | `io.modelcontextprotocol/related-task` | ✅ `RELATED-TASK-META-KEY` (`constants.rkt:60`) | spec |
+| 6 | `TRACEPARENT_META_KEY` | `traceparent` | ❌ **missing** | SEP-414 |
+| 7 | `TRACESTATE_META_KEY` | `tracestate` | ❌ **missing** | SEP-414 |
+| 8 | `BAGGAGE_META_KEY` | `baggage` | ❌ **missing** | SEP-414 |
+
+S1 captured **five** (keys 1–5, all `io.modelcontextprotocol/…`-prefixed); the **three W3C trace-context keys** (keys 6–8, `traceparent` / `tracestate` / `baggage`, SEP-414) were **not** captured. These three are **unprefixed** plain strings — an explicit exception to the `_meta` key-prefix rule — reserved by the spec for OpenTelemetry-style distributed-trace propagation.
+
+> **Resolution — PINNED: define the three missing constants in M5c.** M5c **defines** `TRACEPARENT-META-KEY "traceparent"`, `TRACESTATE-META-KEY "tracestate"`, `BAGGAGE-META-KEY "baggage"` (net-new, SEP-414) and aggregates **all eight** reserved keys in one place (re-exporting the five S1 constants from `constants.rkt` + adding the three trace keys), so the 5-vs-8 gap is **closed and documented**, not silently dropped. The alternative (scope the three out + file an S1 follow-up against `constants.rkt`) is permitted but **not** chosen here — defining them in M5c is the lower-friction path and keeps the full reserved set co-located with the accessor surface. Document the discrepancy + the SEP-414 unprefixed exception in the module doc block.
+
+> **The SDK does NOT interpret trace-context values (PINNED).** `traceparent` / `tracestate` / `baggage` pass through `_meta` **untouched** — the SDK never parses or validates the W3C header formats. They ride in the unreserved-key passthrough (`request-meta-rest`) of the S1 envelope and are re-emitted verbatim. M5c's accessors read/write them as opaque values. Do NOT add W3C trace-context parsing — that is out of scope.
+
+**Accessor/setter surface (PINNED — operate on the `_meta` hash).** Provide accessors/setters over a symbol-keyed `_meta` hash (the wire form of the envelope), plus a reserved-key predicate:
 
 ```racket
-#lang racket/base
-(require "types/main.rkt" "errors.rkt")
-(provide (all-from-out "types/main.rkt")
-         (all-from-out "errors.rkt"))
+(define reserved-meta-key-strings (list PROTOCOL-VERSION-META-KEY … BAGGAGE-META-KEY))   ; all 8 strings
+(define reserved-meta-keys        (map string->symbol reserved-meta-key-strings))         ; all 8 as hash-key symbols
+(reserved-meta-key? k)            ; -> boolean?  ; k a symbol or string; member of the 8
+(meta-ref  meta key [default])    ; -> value     ; read a key (reserved or not) from a _meta hash
+(meta-set  meta key value)        ; -> meta'     ; functional set (returns a NEW hash; meta unchanged)
 ```
 
-`errors.rkt`'s own curated surface (already enumerated by item 006/007: 3 `struct-out`s, 3
-predicates, 2 accessors via the first `provide` block at `errors.rkt:72–83`; 3 constructors, the
-encode function, the encode-jsexpr convenience, and `jsonrpc-error->exn` via the second
-`contract-out` block at `errors.rkt:85–106`) passes through unchanged. No naming collision is
-expected between `errors.rkt`'s surface and `types/main.rkt`'s surface (verify during
-implementation — `errors.rkt` does not redefine any `types.rkt`/spec-module identifier; it only
-imports codes and the `jsonrpc-error` struct, none of which it re-provides under a NEW name that
-would collide).
+- **Key normalization (PINNED).** `read-json` keys every JSON object with **symbols**, so a wire `_meta` hash keyed by `"traceparent"` appears as symbol `'traceparent`, and `"io.modelcontextprotocol/protocolVersion"` as the symbol `|io.modelcontextprotocol/protocolVersion|`. The accessors accept the key as **either** a string (the `…-META-KEY` constant) **or** a symbol, normalizing to the symbol form internally (mirror S1's `(string->symbol …-META-KEY)` pattern in `spec-2026-07-28.rkt:438-442`). So `(meta-ref meta TRACEPARENT-META-KEY)` and `(meta-ref meta 'traceparent)` are equivalent.
+- **`meta-set` is functional (PINNED).** Returns a **new** immutable hash; never mutates the input. Mirrors the codebase's `put`/`hash-set` discipline (the S1 envelope uses immutable `hasheq`).
+- **Reserved-namespace respect (PINNED).** `meta-set` does NOT forbid writing reserved keys (the helper is the legitimate way to set them); `reserved-meta-key?` exists so callers can DETECT a reserved key (e.g. to avoid clobbering it with a user-supplied unreserved key). Document: writing an unreserved key leaves all reserved keys untouched, and vice-versa.
 
-### Part C — the restricted-namespace portability load test (the mechanism, specified precisely)
+**Round-trip with the S1 `_meta` envelope (PINNED).** The acceptance test asserts the trace keys survive an S1 round-trip: a `_meta` hash carrying `traceparent` (+ the three required reserved keys protocolVersion/clientInfo/clientCapabilities) → `json->request-meta` lands `traceparent` in `request-meta-rest` (it is NOT in S1's `request-meta-reserved-keys`) → `request-meta->json` re-emits it verbatim → `(meta-ref re-emitted 'traceparent)` returns the original value. This proves the trace keys pass through the S1 envelope untouched (and documents that S1's `request-meta` treats them as unreserved passthrough — the very reason M5c must own their constants).
 
-**Banned module-path set** (transitively forbidden — none of these may appear anywhere in the
-transitive import closure of `mcp/core/types/main.rkt` or `mcp/core/main.rkt`):
+### M5d framing — `AuthInfo` struct + helpers (read carefully)
+
+**Struct shape — PINNED, field surface EXACT.** Mirror TS `AuthInfo` (`types/types.ts:435`) field-for-field, kebab-cased, `#:transparent`:
 
 ```racket
-(define banned-module-paths
-  (list 'racket/system     ; subprocess spawning (process, process*, system, system*, etc.)
-        'racket/port        ; carries subprocess-adjacent port-copying utilities (conservative ban — verify it's actually unreachable, don't assume)
-        'racket/tcp          ; raw TCP sockets
-        'racket/udp          ; raw UDP sockets
-        'net/url             ; HTTP client (pulls in tcp transitively)
-        'net/http-client      ; HTTP client
-        'net/sendurl
-        'racket/sandbox))    ; the sandbox library itself must not be a RUNTIME dep of the core
+(struct auth-info (token client-id scopes expires-at resource extra) #:transparent)
 ```
 
-> **Pick a concrete, implementable mechanism (per the assignment's instruction) — DECISION:**
-> walk `module->imports` transitively from the barrel's module path, resolving each
-> `module-path-index` to its `resolved-module-path-name`, and assert the banned set has empty
-> intersection with the visited set. **This mechanism was verified to work in THIS environment
-> during spec research** (a `racket -e` one-liner using exactly this approach against
-> `mcp/core/errors.rkt` correctly enumerated `racket/base`, `racket/contract` (+ its private
-> submodules), and the two M1 deps, with none of the banned paths present) — it is not a
-> hypothetical design, it is a confirmed-runnable Racket capability in the actual sandbox. The
-> precise steps, suitable for direct transcription into the test file:
->
-> 1. `(namespace-require top-module-path)` — loads (and registers, for `module->imports`'
->    purposes) the target module (e.g. `(file ".../mcp/core/main.rkt")`) into the current
->    namespace. **Do this inside a FRESH namespace** (`(parameterize ([current-namespace
->    (make-base-namespace)]) …)`) so the test does not depend on / pollute whatever the test
->    runner's own namespace has already loaded (a load that "succeeds" only because some OTHER
->    test already required `racket/tcp` earlier in the same process would be a false pass — the
->    fresh namespace closes that hole).
-> 2. **BFS/DFS over `module->imports`:** maintain a worklist of module paths (start:
->    `(list top-module-path)`) and a `seen` set. Pop a path `m`; if already seen, skip; else mark
->    seen, call `(module->imports m)` (which returns a list of `(phase . (listof
->    module-path-index))` pairs — **note: a single value, NOT two values via
->    `define-values`** — this was a real implementation pitfall hit during spec research: the
->    naive `(define-values (imps _) (module->imports m))` raises `arity mismatch; expected: 2,
->    received: 1`, because `module->imports` returns ONE list of phase-groups, not two values),
->    extract every `module-path-index` across all phase-groups via `(apply append (map cdr
->    phase-groups))`, resolve each via `(resolved-module-path-name (module-path-index-resolve
->    mpi))`, and push every newly-resolved name onto the worklist. Guard the recursive
->    `module->imports` call with `(with-handlers ([exn:fail? (lambda (e) '())]) …)` for any
->    leaf/primitive module that errors on introspection (e.g. some `#%`-prefixed primitive
->    modules cannot be introspected the same way) — treat those as having no further imports
->    rather than failing the walk.
-> 3. **The assertion:** for every banned path `b` in `banned-module-paths`, assert NO visited
->    resolved-module-path-name's `module-path?`-normalized form equals (or is a symbol/path
->    matching) `b`. Concretely: collect all visited names that are `symbol?` (collection-relative
->    requires like `racket/base` resolve to symbols) or whose `path?` basename indicates the
->    banned collection (a `(file …)`-style resolution for a `racket/<x>` collection module — in
->    practice, on this Racket install, `module-path-index-resolve` + `resolved-module-path-name`
->    on a collection-required module like `racket/contract` yields a `path?` pointing into the
->    installed `collects/` tree, e.g. `.../collects/racket/contract.rkt` per the verified
->    transcript — so the check must inspect the PATH's collection-relative tail, not assume a
->    bare symbol). **Concrete check:** `(define (path-mentions-banned? p banned-sym)
->    (regexp-match? (regexp (format "/~a(\\.rkt)?$" banned-sym)) (path->string p)))`
->    OR, more robustly, compare against `(collection-file-path (symbol->string banned-sym)
->    "racket")`-style resolution for each banned symbol UP FRONT and then compare resolved paths
->    by `equal?`/`(same-directory? …)`. **Implementer's job:** pick whichever comparison is
->    robust against both symbol-shaped and path-shaped resolved names (the verified transcript
->    showed PATH-shaped results for `racket/*` collection modules in this environment) and
->    document the exact comparison chosen in the Decisions section on delivery.
-> 4. Run the walk against BOTH `mcp/core/types/main.rkt` and `mcp/core/main.rkt` (the second
->    transitively includes the first plus `errors.rkt`, so it is technically redundant coverage,
->    but the acceptance criterion below requires both be asserted directly, matching the queue's
->    "require `mcp/core/types` and `mcp/core/errors.rkt`" framing literally).
+| TS field | Type | Racket field | Contract | Required? |
+|---|---|---|---|---|
+| `token` | `string` | `token` | `string?` | **required** |
+| `clientId` | `string` | `client-id` | `string?` | **required** |
+| `scopes` | `string[]` | `scopes` | `(listof string?)` | **required** (may be `'()`) |
+| `expiresAt?` | `number` (seconds since epoch) | `expires-at` | `(opt/c exact-nonnegative-integer?)` | optional → `#f` |
+| `resource?` | `URL` | `resource` | `(opt/c string?)` | optional → `#f` |
+| `extra?` | `Record<string, unknown>` | `extra` | `(opt/c json-object?)` | optional → `#f` |
 
-> **Why `racket/sandbox`'s `make-evaluator` is NOT the chosen mechanism (documented so a future
-> reader does not "fix" this into a worse design).** `racket/sandbox` IS available in this
-> environment (verified: `(require racket/sandbox)` loads cleanly) and could run the barrel
-> inside a `make-evaluator` with restricted permissions (e.g. `sandbox-network-guard` /
-> `sandbox-make-inspector` / restricted `eval` limits) and then assert that EXERCISING the
-> loaded module never attempts a banned operation at runtime. That is a strictly WEAKER test
-> than the chosen `module->imports` walk: a sandboxed evaluator only catches a banned operation
-> if the test happens to CALL the code path that performs it; `module->imports` proves the
-> banned module is not even REACHABLE/LOADED, which is the actual Portability NFR claim ("pulls
-> in no subprocess/socket module" — a load-time/import-graph property, not a runtime-behavior
-> property). The chosen mechanism is therefore strictly stronger and directly tests the literal
-> claim; `racket/sandbox` is not used for this assertion (it MAY still be reasonable defense in
-> depth in a future item, but is out of scope here — YAGNI).
+> **`scopes` is REQUIRED (PINNED).** TS types `scopes: string[]` (no `?`), so it is always present — empty list when none, never absent. The struct field is required; the smart constructor defaults it to `'()`.
+
+> **`resource` is a STRING, not a parsed URL (PINNED — portability).** TS holds `resource` as a `URL` object. The Racket port holds the **URL string** (the wire form — `resource` serializes to a string anyway). **Do NOT use `net/url`:** the full `net/url` module transitively pulls `racket/tcp` (a socket dependency), which would **violate the Portability NFR** (core L0–L2 loads with no subprocess/socket) and break item 017's restricted-load sweep. Holding the string keeps M5d socket-free. (If S8 later needs a parsed form, it may wrap with the pure `net/url-structs` — structs only, no tcp — at that layer; that is out of scope here.) Document this trade-off in the module + on the field.
+
+> **Optional fields default to `#f` (PINNED).** Absent `expires-at` / `resource` / `extra` are `#f` (the codebase's `opt/c`/`#f` convention, e.g. `request-meta`'s optionals). `#f` ≠ a present-but-empty value.
+
+**Helpers — PINNED (token + metadata, NO OAuth).** The in-scope helpers from `auth.ts` + `authUtils.ts` are the **non-OAuth** ones (the OAuth zod schemas in `auth.ts` — `OAuthMetadataSchema` etc. — are S8/M14, **excluded here**). Provide at minimum:
+
+```racket
+(make-auth-info #:token t #:client-id c
+                [#:scopes '()] [#:expires-at #f] [#:resource #f] [#:extra #f])  ; smart constructor
+(auth-info-expired? ai [now-seconds])    ; -> boolean?   ; TOKEN helper: expires-at present AND <= now
+(auth-info-has-scope? ai scope)          ; -> boolean?   ; METADATA helper: scope ∈ scopes
+(auth-info->json ai)                     ; -> json-object?  ; wire round-trip (camelCase keys)
+(json->auth-info h)                      ; -> auth-info?    ; wire round-trip
+```
+
+- **`auth-info-expired?` (token helper, PINNED).** `expires-at` is seconds since epoch. `(auth-info-expired? ai)` ⇔ `(and (auth-info-expires-at ai) (<= (auth-info-expires-at ai) (or now (current-seconds))))`. When `expires-at` is `#f` (no expiry recorded) → **`#f`** (not expired / unknown). The optional `now-seconds` arg makes the helper deterministically testable (do NOT make the test depend on wall-clock).
+- **`auth-info-has-scope?` (metadata helper, PINNED).** `(and (member scope (auth-info-scopes ai)) #t)`.
+- **JSON round-trip keys (PINNED — camelCase).** `auth-info->json` emits `token` / `clientId` / `scopes`, and (when non-`#f`) `expiresAt` / `resource` / `extra`, omitting absent optionals (mirror S1's `put`-skips-`#f` discipline). `json->auth-info` is the inverse. This is the wire form S8 server-side verification produces and client-side consumes.
+- **`resourceUrlFromServerUrl` / `checkResourceAllowed` are OUT of scope here (PINNED).** Those `authUtils.ts` helpers operate on parsed URLs (origin + path-prefix matching) and belong to S8's resource-indicator handling; pulling them in now would force URL parsing (the `net/url`/tcp portability hazard above) for no S2 consumer. Note them as S8 work; do NOT implement them in M5d.
+
+### Imports + portability (PINNED — both modules)
+
+- **M5c** imports **S1** — specifically `constants.rkt` (the five reserved-key string constants) via `mcp/core/main.rkt` (or `mcp/core/types/constants.rkt` directly); plus `racket/base`. It defines the three trace-key constants itself. No transport/engine/role module, **no `net/*`, no `racket/system`, no `racket/tcp`/`racket/udp`, no subprocess/socket.**
+- **M5d** imports `racket/base` + `racket/contract` (for the field contracts) + S1's `json-object?` (via `mcp/core/main.rkt`) for the `extra`/`->json` contracts. Same portability ban: **no `net/url` (it pulls `racket/tcp`)**, no subprocess/socket.
+- **Both import only S1** (the queue's ceiling). Neither pulls a transport, engine, or role.
+- **Restricted-load portability is deferred to item 017** — the collection-wide S2 restricted-namespace sweep (which includes `metadata-utils.rkt` + `auth.rkt`) is item 017's job. This item does NOT add a per-module `module->imports` walk (consistent with item 014). Honor the no-`net/*`/no-socket import discipline; item 017 proves it.
+
+### Scope guards (explicit — do NOT cross these lines)
+
+- **No OAuth logic.** No OAuth zod-schema analogues (`OAuthMetadataSchema`, `OAuthTokensSchema`, client registration, etc.) — those are S8/M14. M5d is the `AuthInfo` struct + token/metadata helpers ONLY.
+- **No W3C trace-context parsing.** `traceparent`/`tracestate`/`baggage` pass through opaque; M5c does not parse/validate their header formats.
+- **No `net/url`.** Holds `resource` as a string; full `net/url` pulls `racket/tcp` (socket) and breaks portability.
+- **No struct-dispatch `get-display-name` overload.** One surface: the symbol-keyed hash form.
+- **No name mutation / no canonicalization.** `get-display-name` reads precedence; it does not transform.
+- **No `(module+ test …)`** in either module — tests live under `mcp/core/shared/test/` (consistent with items 010–014).
+- **Explicit `provide`** — never `(all-defined-out)` (architecture §1.3). No internal helper leaks.
 
 ---
 
-## Acceptance criteria
+## Acceptance Criteria
 
-- [ ] **`mcp/core/types/main.rkt` exists** as `#lang racket/base`, `require`s exactly the five
-      sibling modules (`constants.rkt`, `guards.rkt`, `spec-2025-11-25.rkt`,
-      `spec-2026-07-28.rkt`, `types.rkt`), and `provide`s `(all-from-out …)` for each (with
-      `except-out`/`rename-out` applied as needed to resolve any naming collision discovered
-      during implementation — see §Decisions for the recorded resolution). `raco make
-      mcp/core/types/main.rkt` compiles with NO "name clashes" error.
-- [ ] **`mcp/core/main.rkt` exists** as `#lang racket/base`, `require`s `"types/main.rkt"` and
-      `"errors.rkt"`, and `provide`s `(all-from-out …)` for each. `raco make mcp/core/main.rkt`
-      compiles with NO "name clashes" error.
-- [ ] **The barrel re-exports a representative binding from EACH of the six underlying
-      modules**, concretely testable via a single `require` + presence checks:
-      `(require (file "mcp/core/main.rkt"))` then: `INTERNAL-ERROR` is bound and `=` `-32603`
-      (item 001, via the types barrel); `is-jsonrpc-request?` is bound and is a procedure (item
-      002); `jsonrpc-request?` is bound (item 003); a `2026-07-28`-only RC binding is bound, e.g.
-      `(struct-out task)`'s accessor `task-id` or an equivalent RC-revision-specific identifier
-      confirmed present in `spec-2026-07-28.rkt`'s own `provide` (item 004 — verify the exact
-      RC-only identifier name during implementation by re-reading `spec-2026-07-28.rkt`'s
-      `provide` block, since this spec does not re-enumerate all ~176 of its bindings); a
-      `facade-*` struct predicate, e.g. `facade-implementation?` (item 005); `mcp-error?` and
-      `protocol-error?` (item 006); `jsonrpc-error->exn` (item 007). **Each of these seven checks
-      is a single `(check-true (procedure? jsonrpc-error->exn))`-style assertion** — non-vacuous
-      because each name is drawn from a DIFFERENT underlying module, so a barrel that only
-      re-exports (say) `errors.rkt` and silently drops one of the five `types/` modules would
-      fail at least one check.
-- [ ] **THE QUEUE'S CORE TESTABLE CLAIM — the restricted-namespace portability load test
-      passes:** a test (see §Testing strategy for the exact code) that, in a FRESH
-      `(make-base-namespace)`, requires `mcp/core/types/main.rkt` and separately
-      `mcp/core/main.rkt`, transitively walks `module->imports` from each, and asserts the
-      visited resolved-module-path set has EMPTY intersection with the banned set
-      (`racket/system`, `racket/tcp`, `racket/udp`, `net/url`, `net/http-client`, `net/sendurl`,
-      `racket/sandbox`; `racket/port` included conservatively — see Decisions for whether it
-      survives the actual walk). The test FAILS loudly (a `check-true`/`check-false` with a
-      descriptive message naming which banned path was found) if a future item accidentally
-      introduces a non-portable transitive dependency into M1/M2.
-- [ ] **The portability load test is NON-VACUOUS (drift-detectable):** temporarily add
-      `(require racket/tcp)` to a scratch copy of one of the barrel's underlying files (or to
-      the barrel itself), re-run the portability test, confirm it FAILS with a message
-      identifying `racket/tcp`, then revert. This proves the walk actually reaches the injected
-      dependency and the banned-set comparison actually fires (not a vacuously-passing check
-      that never visits anything). Document this drift run in Testing Prerequisites' Manual
-      Validation Checklist (mirrors item 007's "Drift detection" discipline).
-- [ ] **THE QUEUE'S SECOND CORE CLAIM — an internal-only binding is NOT re-exported (the
-      curation proof):** `mcp/core/types/main.rkt` does NOT provide `json-object?` **as defined
-      in `spec-2025-11-25.rkt`** — concretely, `(dynamic-require (quote (file
-      ".../mcp/core/types/main.rkt")) 'json-object? (lambda () 'not-found))` → `'not-found`
-      **IS THE WRONG TEST** if `types.rkt` ALSO defines and re-provides ITS OWN `json-object?`
-      (verified during spec research: `types.rkt:73` DOES `(provide … json-object? …)` — it is
-      `types.rkt`'s OWN binding, not a re-export of `spec-2025-11-25.rkt`'s unprovided one,
-      since `spec-2025-11-25.rkt:51`'s `json-object?` is explicitly listed under "Internal wire
-      helpers (NOT provided, except `absent`)" at line 47 and is absent from that file's own
-      `provide` block at lines 106–256 — confirmed by reading both the comment and the full
-      provide list). **The corrected, valid example:** assert that NONE of
-      `spec-2025-11-25.rkt`'s internal helpers — `h-opt`, `h-req`, `put`, `put!`, `opt-map`,
-      `opt-list`, `req-list`, or `split-loose` (all defined at `spec-2025-11-25.rkt:73–101`,
-      none listed in that file's `provide` block) — are reachable through the barrel:
-      `(dynamic-require (quote (file ".../mcp/core/types/main.rkt")) 'split-loose (lambda ()
-      'not-found))` → `'not-found`. Repeat for `h-opt` and `put!` (pick at least two of the
-      eight, per the "do not leave implicit" discipline). **Also assert the errors.rkt private
-      data-gate helpers are not leaked through `mcp/core/main.rkt`:**
-      `(dynamic-require (quote (file ".../mcp/core/main.rkt")) 'url-elicitation-data? (lambda ()
-      'not-found))` → `'not-found` (this helper is defined at `errors.rkt:212`, used only
-      internally by `jsonrpc-error->exn`, and is NOT in either of `errors.rkt`'s two `provide`
-      blocks at lines 72–83 / 85–106 — confirmed by reading both blocks in full).
-- [ ] **`raco test` passes (exit 0) over `mcp/core/types/` and `mcp/core/errors.rkt`** — this
-      criterion is **inherited, not new**: items 001–007 already deliver passing tests over
-      these paths (verified during spec research: `raco test mcp/core/types/` → "750 tests
-      passed", exit 0; `raco test mcp/core/test/errors-test.rkt` → "129 tests passed", exit 0,
-      both via plain `raco test`, no workaround needed in this environment — see §Testing
-      Prerequisites for the corrected environment note). This item's job is to ALSO make `raco
-      test` pass over the two NEW barrel files plus the new portability/curation tests, without
-      regressing the inherited 750+129.
-- [ ] **The barrel `require`/`provide` is exactly as specified in §The build contract Parts A/B**
-      — no additional `define`s in either barrel file beyond what `except-out`/`rename-out`
-      collision resolution needs; `grep -c '^(define' mcp/core/types/main.rkt
-      mcp/core/main.rkt` → `0` for both (pure re-export files, no new logic).
-- [ ] **Portability (NFR) — both barrels load with zero new transitive non-portable deps beyond
-      what items 001–007 already pull in.** The portability test (above) is the mechanized
-      proof; additionally, `(require (file "mcp/core/main.rkt"))` from a plain `racket -e`
-      one-liner succeeds with no error and no stderr warning about a missing/non-portable
-      module.
-- [ ] **Parity-matrix / progress discipline:** `docs/aide/progress.md` Stage S1 lines for
-      `mcp/core/types/main.rkt` + `mcp/core/main.rkt` (currently 📋 at progress.md lines ~52–53)
-      flip 📋 → ✅. Sibling deliverable lines (constants/spec-2025-11-25/spec-2026-07-28/
-      types.rkt/guards.rkt/errors.rkt, progress.md lines 46–51, all already ✅) are untouched.
-      Per queue-001, this item — together with the already-✅ items 001–007 — completes Stage
-      S1's M1+M2 deliverable list EXCEPT item 009's closeout demo script and the
-      `mcp/core/types/test/` + `mcp/core/test/errors-test.rkt` deliverable line (progress.md
-      line 53), which item 009 also touches (the demo + final test-deliverable checkbox). This
-      item does NOT claim the line-53 test-directory deliverable as fully done on its own — it
-      only ADDS the barrel + portability + curation tests; the line is shared with items
-      003–007's existing test files and is fully retired by item 009's closeout pass.
+### M5c — `mcp/core/shared/metadata-utils.rkt`
+
+- [ ] `mcp/core/shared/metadata-utils.rkt` exists as `#lang racket/base` with an explicit curated `provide`. It lives in the existing `mcp/core/shared/` collection (created by item 013).
+- [ ] Exports exactly: `get-display-name`; the eight reserved-key string constants (`PROTOCOL-VERSION-META-KEY`, `CLIENT-INFO-META-KEY`, `CLIENT-CAPABILITIES-META-KEY`, `LOG-LEVEL-META-KEY`, `RELATED-TASK-META-KEY` re-exported from S1, **plus** `TRACEPARENT-META-KEY`, `TRACESTATE-META-KEY`, `BAGGAGE-META-KEY` defined here); `reserved-meta-keys` (the 8-element symbol list) and/or `reserved-meta-key-strings`; `reserved-meta-key?`; `meta-ref`; `meta-set`. No internal helpers leak.
+- [ ] **`get-display-name` precedence (G1).** `(get-display-name (hasheq 'name "n" 'title "t"))` → `"t"`; `(get-display-name (hasheq 'name "n" 'title "" 'annotations (hasheq 'title "a")))` → `"a"` (empty-string-title fallthrough into annotations.title); `(get-display-name (hasheq 'name "n" 'title ""))` → `"n"` (empty-string-title + no annotations → name); `(get-display-name (hasheq 'name "n"))` → `"n"` (no title, no annotations → name); `(get-display-name (hasheq 'name "n" 'annotations (hasheq 'title "a")))` → `"a"` (no title → annotations.title); `(get-display-name (hasheq 'name "n" 'title "t" 'annotations (hasheq 'title "a")))` → `"t"` (title wins over annotations.title); `(get-display-name (hasheq 'name "n" 'annotations (hasheq 'title "")))` → `"n"` (empty annotations.title falls through to name).
+- [ ] **Trace-key constants exist (5-vs-8 reconciliation).** `TRACEPARENT-META-KEY` = `"traceparent"`, `TRACESTATE-META-KEY` = `"tracestate"`, `BAGGAGE-META-KEY` = `"baggage"`; `(length reserved-meta-keys)` = **8**; each of the eight key symbols is a member of `reserved-meta-keys`; `(reserved-meta-key? 'traceparent)` → `#t`, `(reserved-meta-key? TRACEPARENT-META-KEY)` → `#t` (string form accepted), `(reserved-meta-key? 'someUserKey)` → `#f`.
+- [ ] **`_meta` accessor/setter round-trip.** Starting from a `_meta` hash, `meta-set` each reserved key (e.g. `traceparent`, `logLevel`) and `meta-ref` it back to the value written; a non-reserved key already present (e.g. `'someUserKey`) is left untouched by those `meta-set`s (`(meta-ref result 'someUserKey)` unchanged); `meta-set` returns a NEW hash (input unchanged — functional).
+- [ ] **Trace keys pass through the S1 `_meta` envelope.** A `_meta` hash carrying `traceparent` (value `"00-…-01"`) plus the three required reserved keys, fed through S1 `json->request-meta` then `request-meta->json`, re-emits `traceparent` verbatim; `(meta-ref re-emitted TRACEPARENT-META-KEY)` returns the original value. (Documents that S1's `request-meta` treats the trace keys as unreserved passthrough — the reason M5c owns their constants.)
+- [ ] Module doc block documents: the `get-display-name` precedence + empty-string fallthrough; the **5-vs-8 reserved-key discrepancy** and the SEP-414 unprefixed-key exception; that the SDK does NOT interpret trace-context values.
+
+### M5d — `mcp/core/shared/auth.rkt`
+
+- [ ] `mcp/core/shared/auth.rkt` exists as `#lang racket/base` with an explicit curated `provide`. Lives in `mcp/core/shared/`.
+- [ ] Exports exactly: the struct `auth-info` (with `auth-info?` / `auth-info-token` / `auth-info-client-id` / `auth-info-scopes` / `auth-info-expires-at` / `auth-info-resource` / `auth-info-extra`); `make-auth-info`; `auth-info-expired?`; `auth-info-has-scope?`; `auth-info->json`; `json->auth-info`. No internal helpers leak.
+- [ ] **Field surface EXACT (G1).** `auth-info` has **exactly** the fields `token`, `client-id`, `scopes`, `expires-at`, `resource`, `extra` — in that order — and NO others. (Assert via `(struct->vector (make-auth-info …))` length = 7 [tag + 6 fields] and accessor presence; assert no extra accessor exists.)
+- [ ] **Construct + required/optional.** `(make-auth-info #:token "t" #:client-id "c")` builds an `auth-info` with `scopes` = `'()`, `expires-at`/`resource`/`extra` = `#f`; supplying `#:scopes (list "read" "write") #:expires-at 1700000000 #:resource "https://api.example.com/mcp" #:extra (hasheq 'k "v")` populates each field.
+- [ ] **`auth-info-expired?` (token helper).** `(auth-info-expired? (make-auth-info #:token "t" #:client-id "c" #:expires-at 100) 200)` → `#t` (expired); `… #:expires-at 300) 200)` → `#f` (not yet); with `expires-at` = `#f` → `#f` (no expiry → not expired); boundary `(… #:expires-at 200) 200)` → `#t` (`<=`).
+- [ ] **`auth-info-has-scope?` (metadata helper).** `(auth-info-has-scope? (make-auth-info #:token "t" #:client-id "c" #:scopes (list "read" "write")) "read")` → `#t`; `… "admin")` → `#f`; empty scopes → `#f`.
+- [ ] **JSON round-trip.** `(json->auth-info (auth-info->json ai))` reconstructs `ai` (`check-equal?` on a fully-populated `ai` and on a minimal `ai`); `auth-info->json` emits camelCase keys `token`/`clientId`/`scopes` and omits absent optionals (a minimal `ai`'s json has NO `expiresAt`/`resource`/`extra` keys).
+- [ ] **`resource` is a string.** A populated `ai`'s `resource` field is a `string?` (not a parsed URL object); the module imports NO `net/url`.
+- [ ] Module doc block documents: the field surface mirrors TS `AuthInfo` (`types/types.ts:435`); the `resource`-as-string portability decision (no `net/url`/tcp); that NO OAuth logic lives here.
+
+### Both / cross-cutting
+
+- [ ] **Imports = S1 only.** Each module requires only `mcp/core/main.rkt` (or `mcp/core/types/constants.rkt`) + base collections (`racket/base`, M5d also `racket/contract`). Neither requires a transport/engine/role/subprocess/socket module, and **neither requires `net/*`** (no `net/url`). (The transitive restricted-load proof is item 017's collection-wide sweep — not duplicated here.)
+- [ ] **No `(module+ test …)`** in either module — tests live in `mcp/core/shared/test/metadata-utils-test.rkt` and `mcp/core/shared/test/auth-test.rkt`.
+- [ ] `raco make mcp/core/shared/metadata-utils.rkt mcp/core/shared/auth.rkt` exits 0 (compiles clean, no warnings).
+- [ ] `raco test mcp/core/shared/` passes (exit 0) — the two new modules + tests compile and run cleanly alongside the existing `uri-template` (item 013) and `tool-name-validation` (item 014) suites. Sibling suites `raco test mcp/core/validators/` and `raco test mcp/core/util/` remain green (this item touches neither).
+- [ ] **Progress** (`docs/aide/progress.md`): flip the `metadata-utils.rkt` AND `auth.rkt` Stage-S2 deliverable lines (📋 → 🚧 → ✅). The parity-matrix `metadataUtils` / `auth` rows flip to `partial` in **item 017**, NOT here (see Completion Reminder).
 
 ---
 
-## Implementation steps
+## Implementation Steps
 
-1. **Confirm inputs are green.** Run `raco make mcp/core/types/*.rkt mcp/core/errors.rkt &&
-   raco test mcp/core/types/ mcp/core/test/errors-test.rkt` from repo root. Confirm 750+129
-   tests pass (the baseline this item must not regress). Confirm `racket --version` (this
-   session: Racket 8.18, not the 9.1 some prior item notes mention — version drift across
-   sessions is expected; what matters is that `raco` itself is NOT broken here — verify this
-   yourself before trusting any stale "raco is broken" note in an earlier item).
-2. **Read every one of the six modules' `provide` clauses in full** (not just grep for the
-   `(provide` line — read to the closing paren) to build the exact `all-from-out` list and spot
-   naming collisions BEFORE writing the barrel: `constants.rkt:8–31`, `guards.rkt:30–35`,
-   `spec-2025-11-25.rkt:106–256`, `spec-2026-07-28.rkt:111`+ (read to its closing paren —
-   ~176 pinned checks in its test suggest a comparably large provide list to 003's), `types.rkt`
-   (THREE provide forms: `72–73`, `85–86`, `1319`+ — read all three to their closing parens).
-3. **Draft `mcp/core/types/main.rkt`** per §The build contract Part A. `raco make` it. **Read
-   the compiler's error message verbatim** if it reports "all-from-out: name clashes" — it lists
-   every colliding identifier. Apply `except-out` on the spec-2025-11-25.rkt/spec-2026-07-28.rkt
-   clauses for any name `types.rkt` also provides (the façade's version should win, per N1's
-   "handlers see the FAÇADE's version-agnostic shape" intent — but confirm this resolution
-   doesn't strand a per-revision-only consumer that legitimately needs the RAW per-revision
-   contract; if such a consumer is plausible, use `rename-out` instead of `except-out` so BOTH
-   remain reachable under distinct names — record the final choice in Decisions).
-4. **Draft `mcp/core/main.rkt`** per §The build contract Part B. `raco make` it.
-5. **Smoke-test the seven representative-binding checks** (1 per underlying module) at a REPL
-   before writing the formal test file, to catch a wrong identifier name early.
-6. **Write the portability-walk helper + test.** Implement the `module->imports`-based
-   transitive walk exactly as specified in §The build contract Part C steps 1–3 (note the
-   `module->imports` single-return-value pitfall already hit during spec research — do not
-   `define-values` two values from it). Run it against `mcp/core/types/main.rkt` and
-   `mcp/core/main.rkt`. Confirm the visited set is what you expect (print it once during
-   development — the verified research transcript showed `racket/base`, `racket/contract` +
-   submodules, and the two M1 deps for `errors.rkt` alone; the full barrel's visited set will be
-   larger but still finite and inspectable).
-7. **Run the drift check** (inject `(require racket/tcp)` somewhere reachable, confirm the test
-   fails with a message naming `racket/tcp`, revert) — do this BEFORE finalizing, not as an
-   afterthought, so the test's actual sensitivity is proven while the surrounding code is still
-   fresh in mind.
-8. **Write the curation/negative test** (the internal-binding-not-leaked checks) using
-   `dynamic-require` with a failure thunk, per the corrected example in Acceptance criteria
-   (NOT the originally-floated `json-object?` example, which is invalid because `types.rkt`
-   re-provides its OWN same-named binding — use `split-loose`/`h-opt`/`put!` from
-   `spec-2025-11-25.rkt` and `url-elicitation-data?` from `errors.rkt` instead).
-9. **Decide the test file location(s).** Recommend: `mcp/core/types/test/main-test.rkt` (barrel
-   re-export + curation checks for the types barrel) and a new section appended to
-   `mcp/core/test/errors-test.rkt` OR a new `mcp/core/test/main-test.rkt` for the top barrel +
-   the portability walk (the portability test most naturally covers BOTH barrels at once, so a
-   single file under `mcp/core/test/` that requires both seems cleanest — record the final
-   choice in Decisions; either layout satisfies "raco test passes over mcp/core/types/ and
-   mcp/core/errors.rkt" since `raco test mcp/core/types/` picks up everything under that
-   directory recursively and `mcp/core/test/` is a sibling directory already covered by the
-   item's own AC wording "over mcp/core/types/ and mcp/core/errors.rkt" — verify `raco test`'s
-   directory-recursion behavior covers wherever you place the new file, and adjust the AC's
-   literal test invocation if you place it somewhere `raco test mcp/core/types/
-   mcp/core/errors.rkt` would miss, e.g. by also invoking `raco test mcp/core/test/`).
-10. **Run the full suite** (`raco make` then `raco test`) over the whole `mcp/core/` tree;
-    confirm the inherited 750+129 still pass AND the new barrel/portability/curation checks
-    pass; scan for any new compiler warning.
-11. **Update `docs/aide/progress.md`** — flip the two 📋 lines (progress.md lines 52–53's
-    barrel portion only — see Acceptance criteria's note on NOT claiming the full line-53 test
-    deliverable alone) to ✅ per the Completion Reminder.
+1. **Re-read the references** for shape + behaviour:
+   - `typescript-sdk/packages/core/src/shared/metadataUtils.ts` — the `getDisplayName` precedence + the empty-string/`undefined` guard order.
+   - `typescript-sdk/packages/core/src/types/constants.ts` — the **eight** reserved `_meta` keys (note keys 6–8 `traceparent`/`tracestate`/`baggage` are SEP-414, unprefixed).
+   - `typescript-sdk/packages/core/src/types/types.ts:435` — the `AuthInfo` field list + the `expiresAt` (seconds since epoch) and `resource` (URL) doc comments.
+   - `mcp/core/types/constants.rkt:60-64` — the five S1 reserved-key string constants (already `provide`d).
+   - `mcp/core/types/spec-2026-07-28.rkt:436-487` — the `request-meta` envelope: `request-meta-reserved-keys`, `json->request-meta`, `request-meta->json` (note the trace keys are NOT in the reserved list → they pass through `rest`).
+2. **The design decisions are PINNED** (do not re-decide): `get-display-name` over a symbol-keyed hash (no struct overload); define the 3 trace constants in M5c + aggregate all 8; `auth-info` struct with the EXACT 6-field surface; `resource` as a string (no `net/url`); helpers `auth-info-expired?` / `auth-info-has-scope?` / json round-trip; NO OAuth logic; both import only S1.
+3. **Write `mcp/core/shared/metadata-utils.rkt`** (`#lang racket/base`):
+   - `(require mcp/core/main.rkt)` (or `mcp/core/types/constants.rkt`) for the five S1 reserved-key constants. NO `net/*`.
+   - Module doc block: the precedence + empty-string fallthrough; the 5-vs-8 reconciliation + SEP-414 unprefixed exception; SDK-does-not-interpret-trace-values note; the no-`net/*` portability note.
+   - `get-display-name` per the pinned cond (rung 1 non-empty title → rung 2 non-empty annotations.title → rung 3 name).
+   - `TRACEPARENT-META-KEY` / `TRACESTATE-META-KEY` / `BAGGAGE-META-KEY` = the three plain strings.
+   - `reserved-meta-key-strings` (all 8) + `reserved-meta-keys` (`(map string->symbol …)`).
+   - `reserved-meta-key?` (accept string or symbol; normalize to symbol; `memq` against `reserved-meta-keys`).
+   - `meta-ref` / `meta-set` (normalize key to symbol; `meta-set` functional via `hash-set`).
+   - Explicit `provide` block.
+4. **Write `mcp/core/shared/auth.rkt`** (`#lang racket/base`):
+   - `(require racket/contract)` + `(require mcp/core/main.rkt)` for `json-object?`. NO `net/url`.
+   - Module doc block: AuthInfo field surface mirrors TS `types.ts:435`; `resource`-as-string (no `net/url`/tcp) decision; NO-OAuth scope note.
+   - `(struct auth-info (token client-id scopes expires-at resource extra) #:transparent)` + `auth-info/c` contract.
+   - `make-auth-info` smart constructor (keyword args, defaults `scopes='()`, optionals `#f`).
+   - `auth-info-expired?` (optional `now-seconds`, default `(current-seconds)`; `#f` expires-at → `#f`; `<=` boundary).
+   - `auth-info-has-scope?`.
+   - `auth-info->json` (camelCase keys, omit absent optionals via `put`-skips-`#f`) + `json->auth-info` (inverse).
+   - Explicit `provide` (`struct-out auth-info` + the helpers).
+5. **Write the tests** `mcp/core/shared/test/metadata-utils-test.rkt` + `mcp/core/shared/test/auth-test.rkt` (see Testing Strategy). Port the precedence + field-surface + helper behaviours; assert the S1 envelope round-trip for the trace keys.
+6. **Run** `raco make` on both modules, then `raco test mcp/core/shared/`. Fix any failure. Confirm `raco test mcp/core/validators/` and `raco test mcp/core/util/` still pass (untouched).
+7. **Update progress** (see Completion Reminder).
 
 ---
 
-## Testing strategy
+## Testing Strategy
 
-**New test file(s):** recommend `mcp/core/test/main-test.rkt` (covers BOTH barrels: re-export
-presence checks, the portability walk, and the curation/negative checks) — a single file keeps
-the portability walk's helper function defined once and reused for both barrel entry points,
-rather than duplicating it across two files split by directory. (If the implementer instead
-splits types-barrel checks into `mcp/core/types/test/main-test.rkt`, the portability-walk helper
-should still be defined once, e.g. in whichever file runs first, or factored as a tiny shared
-`(require (only-in …))`-able module — record the final layout in Decisions.)
+Two fixture/behaviour-port test files under `mcp/core/shared/test/`, both `#lang racket/base` with `(require rackunit …)`. No external services; `raco test` only.
 
-`#lang racket/base`; `(require rackunit racket/set (file "../main.rkt") (only-in (file
-"../types/main.rkt") …representative bindings…))`. Rackunit `check-*` at module top level (so
-`racket <file>` exercises them, matching the existing test files' convention — item 006/007's
-`errors-test.rkt` convention, confirmed still followed by `raco test` cleanly in this
-environment).
+### `metadata-utils-test.rkt`
 
-### Part 1 — barrel re-export presence (the seven representative-binding checks)
+`(require rackunit (file "../metadata-utils.rkt") mcp/core/main.rkt)` (the last for the S1 `request-meta` round-trip + the S1 reserved-key constants).
 
-```racket
-(require (only-in (file "../main.rkt")
-                   INTERNAL-ERROR              ; item 001 via types barrel
-                   is-jsonrpc-request?         ; item 002
-                   jsonrpc-request?            ; item 003
-                   ;; an RC-2026-07-28-only identifier — confirm exact name by reading
-                   ;; spec-2026-07-28.rkt's own provide block during implementation
-                   facade-implementation?      ; item 005 façade
-                   mcp-error? protocol-error?  ; item 006
-                   jsonrpc-error->exn))        ; item 007
-(check-equal? INTERNAL-ERROR -32603)
-(check-true (procedure? is-jsonrpc-request?))
-(check-true (procedure? jsonrpc-request?))
-(check-true (procedure? facade-implementation?))
-(check-true (procedure? mcp-error?))
-(check-true (procedure? protocol-error?))
-(check-true (procedure? jsonrpc-error->exn))
-```
+**Part 1 — `get-display-name` precedence (G1).** The seven cases from the acceptance criteria: title-wins, empty-title→annotations.title, empty-title→name, no-title→annotations.title, no-title-no-annotations→name, title-over-annotations, empty-annotations.title→name. Each a `check-equal?`.
 
-(Add one more `only-in` entry for the chosen 2026-07-28-only identifier once confirmed by
-reading that file's provide block; substitute it for `facade-implementation?`'s slot or add an
-eighth check — either satisfies "a representative binding from each of the six modules", since
-`types.rkt` and `spec-2026-07-28.rkt` are both M1 sources.)
+**Part 2 — reserved-key constants + predicate.** `(check-equal? TRACEPARENT-META-KEY "traceparent")` (+ tracestate/baggage); `(check-equal? (length reserved-meta-keys) 8)`; each of the 8 key symbols `(check-true (and (memq k reserved-meta-keys) #t))`; `(check-true (reserved-meta-key? 'traceparent))`; `(check-true (reserved-meta-key? TRACEPARENT-META-KEY))`; `(check-false (reserved-meta-key? 'someUserKey))`.
 
-### Part 2 — the restricted-namespace portability walk (the queue's core claim)
+**Part 3 — `meta-ref` / `meta-set` round-trip + non-reserved untouched.** Start `(define m0 (hasheq 'someUserKey "keep"))`; `(define m1 (meta-set m0 'traceparent "00-abc-01"))`; `(check-equal? (meta-ref m1 'traceparent) "00-abc-01")`; `(check-equal? (meta-ref m1 'someUserKey) "keep")` (untouched); `(check-equal? (meta-ref m0 'traceparent #f) #f)` (m0 unchanged — functional); also `meta-set` a reserved logLevel key and read back; `(meta-ref m1 'missing 'dflt)` → `'dflt`.
 
-```racket
-(require racket/set)
+**Part 4 — trace key passes through the S1 envelope.** Build a wire `_meta` hash with the three S1-required reserved keys (protocolVersion/clientInfo/clientCapabilities — use the S1 `…-META-KEY` constants as keys, with minimal valid values) plus `'traceparent → "00-abc-01"`; run `json->request-meta` then `request-meta->json`; `(check-equal? (meta-ref re-emitted TRACEPARENT-META-KEY) "00-abc-01")`. (Confirms the trace key survives S1's unreserved passthrough untouched.)
 
-(define banned-module-paths
-  '(racket/system racket/port racket/tcp racket/udp
-    net/url net/http-client net/sendurl racket/sandbox))
+### `auth-test.rkt`
 
-(define (mp->name mpi) (resolved-module-path-name (module-path-index-resolve mpi)))
+`(require rackunit (file "../auth.rkt"))`.
 
-(define (direct-imports m)
-  (with-handlers ([exn:fail? (lambda (e) '())])
-    (define phase-groups (module->imports m))
-    (apply append (map (lambda (pg) (map mp->name (cdr pg))) phase-groups))))
+**Part 1 — construct + defaults.** `make-auth-info` minimal (token+client-id) → scopes `'()`, optionals `#f`; fully-populated → each field set. `check-equal?` on accessors.
 
-(define (transitive-imports top)
-  (namespace-require top)
-  (let loop ([queue (list top)] [seen (set)])
-    (cond
-      [(null? queue) seen]
-      [else
-       (define m (car queue))
-       (cond
-         [(or (not m) (set-member? seen m)) (loop (cdr queue) seen)]
-         [else (loop (append (cdr queue) (direct-imports m)) (set-add seen m))])])))
+**Part 2 — field surface EXACT.** Assert the struct has exactly 6 fields in order: `(check-equal? (vector-length (struct->vector (make-auth-info #:token "t" #:client-id "c"))) 7)` (tag + 6 fields); assert each accessor returns the right field; (optionally) confirm via `struct-info`/doc that no 7th field exists.
 
-(define (banned-hit? visited banned-sym)
-  (for/or ([m (in-set visited)])
-    (and (path? m) (regexp-match? (regexp (format "/~a(\\.rkt)?$" banned-sym))
-                                   (path->string m)))))
+**Part 3 — `auth-info-expired?` (token helper).** expired (`#:expires-at 100`, now 200 → `#t`); not-yet (`300`, now 200 → `#f`); boundary (`200`, now 200 → `#t`); no-expiry (`#f` → `#f`).
 
-(define (check-portable! top-path label)
-  (parameterize ([current-namespace (make-base-namespace)])
-    (define visited (transitive-imports top-path))
-    (for ([b banned-module-paths])
-      (check-false (banned-hit? visited b)
-                   (format "~a transitively imports banned module ~a" label b)))))
+**Part 4 — `auth-info-has-scope?` (metadata helper).** member → `#t`; non-member → `#f`; empty scopes → `#f`.
 
-(check-portable! '(file "/ABS/PATH/TO/mcp/core/types/main.rkt") "types/main.rkt")
-(check-portable! '(file "/ABS/PATH/TO/mcp/core/main.rkt") "core/main.rkt")
-```
+**Part 5 — JSON round-trip.** Fully-populated `ai`: `(check-equal? (json->auth-info (auth-info->json ai)) ai)`; minimal `ai`: same, AND `(check-false (hash-has-key? (auth-info->json minimal) 'expiresAt))` (+ `resource`/`extra` absent); assert camelCase `(check-true (hash-has-key? (auth-info->json ai) 'clientId))`.
 
-(Use `(build-path (collection-file-path "." "mcp") ...)`-style or a `runtime-path`-derived
-absolute path rather than a literal `/ABS/PATH` placeholder — resolve the real path-construction
-idiom this codebase already uses elsewhere, e.g. how `errors-test.rkt` requires
-`(file "../errors.rkt")` relatively; adapt `top-path` construction to be relative-require-based
-if `module->imports`/`namespace-require` accept the SAME `(file "../main.rkt")` relative form
-used elsewhere in this codebase's tests — verify during implementation, since the research
-transcript used an absolute path successfully but did not test a relative one.)
+**Part 6 — `resource` is a string.** `(check-true (string? (auth-info-resource (make-auth-info #:token "t" #:client-id "c" #:resource "https://api.example.com/mcp"))))`.
 
-**Non-vacuous drift check (manual, documented, not left in the final suite as a standing test
-since it requires editing a sibling file):** temporarily add `(require racket/tcp)` to a SCRATCH
-copy of `mcp/core/errors.rkt` (or directly add a throwaway `(require racket/tcp)` line at the
-top of the DRAFT barrel during development), re-run `check-portable!`, confirm a `check-false`
-failure naming `racket/tcp`, then revert. Document the run (output snippet) in Testing
-Prerequisites' Validation Results, mirroring item 007's drift-detection discipline.
+### Fixture provenance
 
-### Part 3 — curation / negative checks (internal bindings not leaked)
-
-```racket
-(check-equal? (dynamic-require '(file "/ABS/PATH/TO/mcp/core/types/main.rkt")
-                                'split-loose (lambda () 'not-found))
-              'not-found)
-(check-equal? (dynamic-require '(file "/ABS/PATH/TO/mcp/core/types/main.rkt")
-                                'h-opt (lambda () 'not-found))
-              'not-found)
-(check-equal? (dynamic-require '(file "/ABS/PATH/TO/mcp/core/types/main.rkt")
-                                'put! (lambda () 'not-found))
-              'not-found)
-(check-equal? (dynamic-require '(file "/ABS/PATH/TO/mcp/core/main.rkt")
-                                'url-elicitation-data? (lambda () 'not-found))
-              'not-found)
-(check-equal? (dynamic-require '(file "/ABS/PATH/TO/mcp/core/main.rkt")
-                                'unsupported-version-data? (lambda () 'not-found))
-              'not-found)
-```
-
-### Edge cases the test must cover (do not leave implicit)
-
-- **The portability walk is run in a FRESH namespace**, not the test runner's ambient one — a
-  test that happens to pass only because no other loaded module pulled in `racket/tcp` yet would
-  be a false negative on a future regression introduced by an UNRELATED earlier-loaded module in
-  the same process; `(make-base-namespace)` per check closes this.
-- **The collision-resolution `except-out`/`rename-out` is actually exercised**, i.e. compiling
-  the barrel does not silently shadow one binding with another of the same name without the
-  implementer noticing — `raco make`'s "name clashes" error is the enforcement mechanism; the
-  test file additionally asserts (Part 1) that the SPECIFIC names it cares about resolve to the
-  expected (façade or per-revision) values, catching a wrong-direction `except-out` choice.
-- **`module->imports`'s single-return-value shape** — pin this with the helper function as
-  written above (NOT `define-values`), since the research transcript showed the naive
-  `define-values` form raises an arity-mismatch error in this exact Racket version (8.18).
-- **A leaf module that raises on `module->imports` introspection** (e.g. certain `#%`-primitive
-  modules) does not crash the walk — the `with-handlers` guard in `direct-imports` treats it as
-  a dead end, not a fatal error.
-
-### The `raco test` / `raco make` gate (corrected environment note — see Testing Prerequisites)
-
-Run `raco make mcp/core/types/*.rkt mcp/core/errors.rkt mcp/core/types/main.rkt
-mcp/core/main.rkt && raco test mcp/core/types/ mcp/core/test/` from the repo root. **In THIS
-session `raco` is NOT broken** (Racket 8.18; both commands exit 0 and report pass counts
-directly, e.g. "750 tests passed" / "129 tests passed" — verified during spec research). Prior
-items' notes claiming `raco`/the snap wrapper is broken describe a DIFFERENT, earlier
-environment's quirk and should not be propagated as a standing workaround into this item — if a
-future session DOES hit a broken `raco`, fall back to the documented `racket <file>` direct-run
-+ output-scan technique items 006/007 used, but do not pre-emptively avoid `raco` here.
+- `get-display-name` cases ← TS `metadataUtils.ts` precedence semantics (TS has no dedicated test file for it; the cases are derived from the documented precedence + the empty-string guard — record this in the test header).
+- `AuthInfo` field surface ← TS `types/types.ts:435`. The OAuth zod-schema fixtures in `auth.test.ts` are **out of scope** (no OAuth logic); the `authUtils.test.ts` `resourceUrlFromServerUrl`/`checkResourceAllowed` fixtures are **deferred to S8** (those helpers are not implemented here). Note this in the test header so a reviewer does not expect them.
 
 ---
 
 ## Dependencies
 
-- **Upstream work items (ALL ✅ — this item is a pure aggregator over their already-curated
-  surfaces, adding no new logic of its own beyond the two re-export files + the portability/
-  curation tests):**
-  - **Item 001** (`mcp/core/types/constants.rkt`, ✅) — re-exported via
-    `(all-from-out "constants.rkt")`.
-  - **Item 002** (`mcp/core/types/guards.rkt`, ✅) — re-exported via `(all-from-out
-    "guards.rkt")`.
-  - **Item 003** (`mcp/core/types/spec-2025-11-25.rkt`, ✅) — re-exported via `(all-from-out
-    "spec-2025-11-25.rkt")` (minus any façade-collision names resolved per Decisions).
-  - **Item 004** (`mcp/core/types/spec-2026-07-28.rkt`, ✅) — re-exported via `(all-from-out
-    "spec-2026-07-28.rkt")` (minus any façade-collision names).
-  - **Item 005** (`mcp/core/types/types.rkt`, ✅) — re-exported via `(all-from-out "types.rkt")`;
-    ALSO the source of the façade-collision names that must be resolved against 003/004 (see
-    §Decisions).
-  - **Item 006** (`mcp/core/errors.rkt` ENCODE half, ✅) + **Item 007** (DECODE half, ✅,
-    completing the file) — together re-exported via `(all-from-out "errors.rkt")` in
-    `mcp/core/main.rkt`.
-- **Forward / downstream consumers (informational):** Stage S2 (validators/schema/shared utils,
-  queue-002) and every later stage's modules are expected to `require (file
-  "mcp/core/main.rkt")` (or the types-only `mcp/core/types/main.rkt` where errors are not
-  needed) as their SINGLE entry point into Stage S1's public surface, per architecture §1.3 — so
-  this item's barrel shape is the API contract every later item inherits. Getting the
-  curation/collision decisions right here avoids a breaking barrel-surface change later.
-- **Operates on:** pure module-graph composition (`require`/`provide`) + introspection
-  (`module->imports`) at test time. No file/network I/O at the barrels' own module load time;
-  the test file performs in-process namespace/module introspection only (no subprocess, no
-  socket — consistent with what it is proving about its subjects).
-- **Tooling/runtime:** Racket ≥ 8.x (this session: 8.18; `raco make`/`raco test` BOTH confirmed
-  working, not broken); `rackunit`; `racket/set` (for the visited-module-set); the
-  `typescript-sdk/` checkout is NOT needed for this item (no TS line-for-line port — see
-  Reference impl note above).
-
----
-
-## Project-specific adaptations (Racket module system / barrels / restricted namespaces)
-
-This template's "Required Services / database / API endpoint" framing does not apply: **this is
-a pure module-composition item (two re-export files) plus a module-graph introspection test —
-no external services, no I/O at barrel load time.** Adaptations:
-
-- **`main.rkt` as the Racket idiom for a curated package barrel.** Racket collections
-  conventionally expose a `main.rkt` (or `collection-name.rkt`) as the "import this for
-  everything" entry point — directly mirroring what architecture §1.3 calls out as "Mirrors TS
-  `core/public` vs internal barrel" (a TS package's `index.ts` re-export surface). No class/
-  namespace-object transliteration needed (G4) — Racket's `require`/`provide`/`all-from-out` IS
-  the idiomatic mechanism, simpler than TS's barrel-file re-export syntax.
-- **`all-from-out` vs hand-picked re-export — the per-module decision is documented above** (not
-  repeated here); the Racket-specific subtlety this surfaces is `all-from-out`'s "name clashes"
-  compile-time error when two `require`d modules export the same identifier — a Racket-specific
-  failure mode with no direct TS analogue (TS's `export *` resolves collisions by last-write-wins
-  shadowing silently, which Racket deliberately refuses to do). This item's collision-resolution
-  step is therefore genuinely Racket-idiomatic work, not a mechanical port.
-- **`module->imports` + `module-path-index-resolve` as the restricted-namespace mechanism.**
-  Racket has no single "give me the transitive import closure" built-in; the walk is hand-rolled
-  over the primitive `module->imports` (returns per-phase direct-import lists as
-  `module-path-index` values needing resolution) — analogous to (but with no TS equivalent,
-  since TS/JS has no comparable reflective module-graph introspection API at this level) a
-  manual `require.resolve` + dependency-graph walk one might hand-roll in Node, except Racket's
-  version operates on already-COMPILED module metadata, not source-text scanning, making it more
-  reliable (it cannot be fooled by a `require` hidden behind a string-concatenation or dynamic
-  `require` call the way a naive static source scan could be — though a TRUE `dynamic-require`
-  at runtime, executed conditionally, could still evade this static-import-graph check; that
-  residual gap is acceptable for L0 foundation modules which have no business doing conditional
-  dynamic requires in the first place, and is noted, not solved, here).
-- **No services / no I/O / no fixtures.** The test file requires its subjects and introspects
-  in-memory module metadata; no `fixtures/` directory needed (same posture as items 006/007).
-
----
-
-## Testing Prerequisites (CRITICAL)
-
-### Required Services
-
-**None.** No I/O at barrel module load, no service contacted; the portability test's whole point
-is that NONE is reachable. External artifacts:
-
-| "Service" | Why | How to obtain | Port |
-|---|---|---|---|
-| Racket ≥ 8.x runtime (this session: 8.18) | compile + run modules/tests (`rackunit`, `racket/set`) | system install (`racket --version` ≥ 8.0) | n/a |
-| Items 001–005 (`mcp/core/types/*.rkt`, ✅) | the five modules the types barrel re-exports | produced by items 001–005 | n/a |
-| Item 006+007 (`mcp/core/errors.rkt`, ✅, both halves) | the module the top barrel additionally re-exports | produced by items 006–007 | n/a |
-
-No databases, queues, HTTP servers, or network dependencies — and the portability test's entire
-purpose is to MECHANICALLY confirm that remains true transitively, not just by inspection.
-
-### Environment Configuration — CORRECTED `raco` note (verify-before-trust, per this item's brief)
-
-- **Environment variables / secrets / config files:** none.
-- **Ports:** none must be free.
-- **Working directory:** run tests from the **repo root** (`/home/tlam/racket-mcp`) so the
-  `mcp/...` collection + relative requires resolve.
-- **`raco` status in THIS session — VERIFIED, not assumed:**
-  `racket --version` → `Welcome to Racket v8.18 [cs].`
-  `raco make mcp/core/types/constants.rkt mcp/core/types/guards.rkt
-  mcp/core/types/spec-2025-11-25.rkt mcp/core/types/spec-2026-07-28.rkt
-  mcp/core/types/types.rkt mcp/core/errors.rkt` → **exit 0, no output (clean compile).**
-  `raco test mcp/core/types/` → exit 0, reports "750 tests passed" (with intermediate
-  `pinned check count` lines from spec-2025-11-25-test/spec-2026-07-28-test/types-test).
-  `raco test mcp/core/test/errors-test.rkt` → exit 0, "errors-test.rkt: all checks executed",
-  "129 tests passed". **Conclusion: `raco` (both `make` and `test` subcommands) works correctly
-  and reports results directly in this environment.** Item 007's prose ("`raco` IS BROKEN in
-  this sandbox … the `raco` snap wrapper … silently exits 1") describes a PRIOR, DIFFERENT
-  session's environment quirk (a different Racket install / snap-wrapper path,
-  `/home/rev/Linux/Projects/racket_mcp` vs this session's `/home/tlam/racket-mcp` — note even
-  the repo root path differs, confirming a different machine/session) and does NOT describe
-  THIS session. **Do not propagate the `racket <file>` direct-run workaround into this item's
-  own Manual Validation Checklist as if it were still necessary** — use plain `raco make` /
-  `raco test` as the canonical commands, and if a future session's `raco` IS observed broken,
-  fall back to the direct-run technique THEN (re-verifying first), not pre-emptively.
-- **Pre-flight checks:**
-  - `racket --version` → ≥ 8.0 (this session: 8.18).
-  - `raco make mcp/core/types/*.rkt mcp/core/errors.rkt` → exit 0 (items 001–007 baseline).
-  - `raco test mcp/core/types/ mcp/core/test/errors-test.rkt` → exit 0, 750+129 tests passed
-    (the regression baseline this item must not break).
-  - `test -f mcp/core/types/types.rkt && test -f mcp/core/errors.rkt` → items 005/007 present.
-  - `test ! -f mcp/core/types/main.rkt && test ! -f mcp/core/main.rkt` → confirms these are
-    genuinely NEW files this item creates (verified during spec research: neither exists yet,
-    nor does any `info.rkt` anywhere under `mcp/`).
-
-### Manual Validation Checklist
-
-- [ ] **Build/compile:** `raco make mcp/core/types/main.rkt mcp/core/main.rkt` compiles clean,
-      exit 0, with NO "all-from-out: name clashes" error (resolve any reported collision with
-      `except-out`/`rename-out` before this box is checked).
-- [ ] **Regression — prior items still green:** `raco test mcp/core/types/ mcp/core/test/
-      errors-test.rkt` → still 750+129 tests passed, 0 new failures (the barrel files must not
-      perturb anything already delivered).
-- [ ] **Barrel re-export verified (REPL):** `racket -e '(require (file
-      "mcp/core/main.rkt")) (displayln INTERNAL-ERROR) (displayln (procedure?
-      jsonrpc-error->exn))'` → prints `-32603` then `#t`.
-- [ ] **New barrel/portability/curation tests pass:** `raco test mcp/core/test/` (or wherever
-      the new test file(s) live per Implementation step 9's chosen layout) → exit 0, all new
-      checks pass.
-- [ ] **Portability walk verified (REPL smoke, before trusting the formal test):** run the
-      `transitive-imports` helper (§Testing strategy Part 2) against `(file
-      "mcp/core/main.rkt")` in a fresh `racket -e` invocation; manually eyeball the printed
-      visited set contains no `racket/system`/`racket/tcp`/`racket/udp`/`net/*` entries.
-- [ ] **Drift detection (non-vacuous proof):** inject `(require racket/tcp)` into a scratch/
-      draft copy reachable from the barrel; re-run the portability check; confirm a `check-false`
-      FAILURE naming `racket/tcp`; revert; re-run; confirm clean. Record the failing-run output
-      snippet in Validation Results below (mirrors item 007's drift-detection discipline).
-- [ ] **Curation negative checks verified (REPL):** `(dynamic-require '(file
-      "mcp/core/types/main.rkt") 'split-loose (lambda () 'not-found))` → `'not-found`;
-      `(dynamic-require '(file "mcp/core/main.rkt") 'url-elicitation-data? (lambda () 'not-found))`
-      → `'not-found`.
-- [ ] **No new `define`s in the barrels:** `grep -c '^(define' mcp/core/types/main.rkt
-      mcp/core/main.rkt` → `0` for both files (pure require+provide).
-- [ ] **`module->imports` single-value pitfall avoided:** code review confirms the walk helper
-      does NOT use `(define-values (imps _) (module->imports m))` (which raises an arity-mismatch
-      in this Racket version) but instead binds the single returned list directly.
-- [ ] **Health checks pass:** N/A.
-
-### Expected Outcomes
-
-The two new files export NOTHING beyond what `all-from-out` mechanically re-exports from their
-`require`d siblings (zero new `define`s). The new test file(s) add:
-
-- **barrel re-export checks:** ≥ 7 (one per underlying module, Part 1).
-- **portability-walk checks:** ≥ 2 (one per barrel entry point: `types/main.rkt`,
-  `core/main.rkt`) × the size of `banned-module-paths` (8 banned paths) = ≥ 16 individual
-  `check-false` assertions, OR ≥ 2 if implemented as one aggregate assertion per barrel
-  (recommend per-banned-path granularity for a more informative failure message — record the
-  choice).
-- **curation negative checks:** ≥ 5 (at least 3 from `spec-2025-11-25.rkt`'s internal helpers,
-  ≥ 2 from `errors.rkt`'s private data-gate helpers, per Part 3).
-- **Total new checks: ≥ ~25–30**, atop the inherited 750 (types) + 129 (errors) = 879 existing
-  checks, none regressed.
-
-### Validation Results
-
-```markdown
-## Validation Results (to be completed during implementation)
-- [ ] Service started: N/A (pure module-composition item, no services)
-- [ ] Build verified: `raco make mcp/core/types/main.rkt mcp/core/main.rkt` — record exit code
-      and confirm no "name clashes" error (or record the clashes found + the except-out/
-      rename-out resolution applied)
-- [ ] Regression verified: `raco test mcp/core/types/ mcp/core/test/errors-test.rkt` — record
-      pass count, confirm still ≥ 750+129, 0 new failures
-- [ ] Barrel re-export verified: record actual values for the 7 representative-binding checks
-- [ ] Portability walk verified: record the actual visited-module-path set size and confirm
-      absence of all 8 banned paths, for BOTH `types/main.rkt` and `core/main.rkt`
-- [ ] Drift detection verified: record the FAILING run's output (injected racket/tcp →
-      check-false failure naming racket/tcp) and the reverted CLEAN run's output
-- [ ] Curation negative checks verified: record actual `dynamic-require` results for all 5
-      chosen internal-helper names
-- [ ] No-new-defines verified: record `grep -c` output for both barrel files
-- [ ] module->imports pitfall avoided: confirm by code inspection
-- [ ] Database tables verified: N/A
-- [ ] API endpoints verified: N/A
-- [ ] Screenshots captured: N/A (no UI)
-```
-
-*(This section is intentionally NOT pre-filled with a fabricated "completed" transcript, unlike
-some earlier items' templates — item 008 has not been implemented yet. The implementer fills
-this in for real on delivery, following items 006/007's format once results exist.)*
-
-### Test commands run and results
-
-*(To be filled in during implementation — record the actual `raco make`/`raco test` invocations
-and their actual output, the actual collision-resolution diff if any, and the actual drift-check
-transcript, mirroring items 006/007's "Test commands run and results" section once this item is
-built.)*
+- **Upstream work items:**
+  - **S1 (items 001–008)** — M5c re-exports the five reserved-key string constants from `mcp/core/types/constants.rkt` and round-trips with the `request-meta` envelope from `mcp/core/types/spec-2026-07-28.rkt` (item 004); M5d uses `json-object?` from S1. Both require S1 via `mcp/core/main.rkt`.
+  - **Item 013** created the `mcp/core/shared/` + `mcp/core/shared/test/` collection directories, into which these two modules + their tests are added.
+- **Downstream consumers (informational):**
+  - **S6b** high-level server (`mcp/server/mcp.rkt`, M12b) — `register-tool` calls `get-display-name` (and may consult the reserved `_meta` keys). M5c has NO S2 consumer; it ships fully tested standalone.
+  - **S8** auth (M14) — client `mcp/client/auth.rkt` + server `mcp/server/auth/` both consume `auth-info`; the `resourceUrlFromServerUrl`/`checkResourceAllowed` helpers (deferred here) land in S8. M5d has NO S2 consumer.
+  - **Item 017** — the S2 collection-wide restricted-load portability sweep includes both modules AND flips the parity-matrix `metadataUtils` / `auth` rows to `partial`. (This item does NOT flip those rows.)
+  - **Item 018** — the S2 demo headline is schema + URI template + stdio; it MAY optionally touch these modules.
+- **Tooling/runtime:** Racket ≥ 8.x (`raco`, `rackunit`). The `typescript-sdk/` checkout MUST be present for **authoring** (behaviour from `metadataUtils.ts` / `constants.ts` / `types.ts:435`); the Racket tests do NOT parse the `.ts` at runtime (fixtures transcribed into Racket assertions).
 
 ---
 
@@ -824,37 +288,124 @@ built.)*
 
 To be updated during implementation.
 
+The **design decisions below are PINNED at spec time** (real choices, not options). The **post-build outcome** (require list as built, exact check counts) is *to be updated during implementation*.
+
+**(a) `get-display-name` operates on a symbol-keyed JSON-object hash, not a struct-dispatch zoo.** Mirrors the TS duck-typed object 1:1, round-trips with the wire form, keeps the `annotations.title` rung testable without constructing a full multi-field `tool` struct, and avoids drift across six heterogeneous S1 struct types. M12b calls `(get-display-name (tool->json t))` or builds a 3-key hash. **To be updated during implementation.**
+
+**(b) Empty-string title is treated as absent (fallthrough).** TS's `title !== undefined && title !== ''` is ported verbatim: `""` falls through rung 1 (and a `""` annotations.title falls through rung 2). The empty-string-title→annotations.title→name path is the load-bearing test. **To be updated during implementation.**
+
+**(c) The three missing trace-context constants are defined in M5c (5-vs-8 reconciliation).** `traceparent`/`tracestate`/`baggage` (SEP-414, unprefixed) were not captured in S1; M5c defines them + aggregates all eight reserved keys in one place, closing the gap rather than silently dropping it. The alternative (file an S1 follow-up against `constants.rkt`) was considered and not chosen — co-locating the full set with the accessors is lower-friction. The SDK does not interpret the trace values; they pass through `_meta` untouched (and ride S1's `request-meta-rest` unreserved passthrough). **To be updated during implementation.**
+
+**(d) `auth-info` mirrors the TS `AuthInfo` field surface EXACTLY (6 fields, `#:transparent`).** `token`/`client-id`/`scopes` required, `expires-at`/`resource`/`extra` optional → `#f`. `scopes` is required (TS `string[]`, no `?`) defaulting to `'()` in the constructor. The exact-surface test guards against field drift. **To be updated during implementation.**
+
+**(e) `resource` is held as a STRING, not a parsed URL (portability).** Full `net/url` transitively pulls `racket/tcp` (a socket), violating the Portability NFR + breaking item 017's restricted-load sweep. Holding the URL string keeps M5d socket-free and matches the wire form. A pure parsed form (`net/url-structs`, no tcp) may be added at S8 if needed. **To be updated during implementation.**
+
+**(f) Helpers are token/metadata only — NO OAuth.** `auth-info-expired?` (token), `auth-info-has-scope?` (metadata/scopes), `make-auth-info`, json round-trip. The OAuth zod schemas in TS `auth.ts` and the URL helpers in `authUtils.ts` (`resourceUrlFromServerUrl`/`checkResourceAllowed`) are S8/M14 and excluded here (the latter also for the `net/url` portability hazard). **To be updated during implementation.**
+
+**(g) Restricted-load portability deferred to item 017.** No per-module `module->imports` walk here (consistent with item 014); the collection-wide S2 sweep including both modules is item 017, which also flips the parity rows. **To be updated during implementation.**
+
+**(h) Post-build outcomes (recorded at implementation).**
+- **Require lists as built:** M5c = `(require mcp/core/main.rkt)` [or `…/types/constants.rkt`]; M5d = `(require racket/contract mcp/core/main.rkt)`. Both NO `net/*`, NO subprocess/socket. *(confirm)*
+- **Exact check counts:** `raco test mcp/core/shared/` → **TBD** (new metadata-utils + auth checks added to the existing 192 from items 013+014). New suites alone: metadata-utils-test = **TBD**, auth-test = **TBD**. Sibling suites unaffected: `raco test mcp/core/validators/` → 300; `raco test mcp/core/util/` → 102. *(confirm)*
+- **`raco make`:** both modules → exit 0, clean. *(confirm)*
+- **`get-display-name` input form:** hash (confirmed); no struct overload shipped. *(confirm)*
+- **`resource` form:** string (confirmed); no `net/url`. *(confirm)*
+- **No `(module+ test …)`** in either module; tests under `test/`. *(confirm)*
+
+---
+
+## Project-Specific Adaptations (Racket / raco / rackunit)
+
+This is a **Racket library, not a service** — same adaptation pattern as items 010–014. The generic "Testing Prerequisites" template (Required Services / database / API endpoint / ports / health checks) does **not** apply and is adapted:
+
+- **Required Services → None.** Pure Racket library; no external services, databases, message queues, HTTP servers, sockets, subprocesses, or network. Both modules are L0 and load-portable by construction (proven by item 017's collection-wide sweep). No I/O at all (no logger even — unlike item 014; these modules are pure data + functions).
+- **Database / API endpoint / ports sections → N/A.** Removed; replaced by the Racket toolchain row below.
+- **Required toolchain:** Racket ≥ 8.x (`raco test`, `rackunit`). (This env: Racket v8.18 [cs], per item 013.)
+- **TS checkout role:** present at `typescript-sdk/`; **required for authoring** (behaviour from `metadataUtils.ts` / `constants.ts` / `types.ts:435`); not parsed at test runtime.
+- **Manual Validation Checklist → specialized** to `raco make` / `raco test` + a REPL smoke check (below). No "service started" / "health check" / "screenshots" rows.
+- **Language/naming:** `#lang racket/base`; kebab-case bindings; explicit `(provide …)` never `all-defined-out` (architecture §1.3); S1-only imports, no `net/*` (architecture §4.1 portability).
+- **Collection directory:** `mcp/core/shared/` + `mcp/core/shared/test/` already exist (item 013). This item adds `metadata-utils.rkt`, `auth.rkt`, `test/metadata-utils-test.rkt`, `test/auth-test.rkt`.
+- **No-consumer-in-S2 note:** like items 013/014, both modules have NO S2 consumer; they ship fully tested standalone and are wired up by S6b (M5c) / S8 (M5d).
+
+---
+
+## Testing Prerequisites (CRITICAL)
+
+### Required Services
+
+**None (pure Racket library; no external services).** No databases, message queues, HTTP servers, sockets, subprocesses, or network dependencies. No I/O whatsoever (no logger). The TS checkout is a **parity reference** read while authoring, not a runtime dependency.
+
+| "Service" | Why | How to obtain | Port |
+|---|---|---|---|
+| Racket ≥ 8.x runtime | compile + run modules and tests (`raco`, `rackunit`) | system install (`racket --version` ≥ 8.0; this env: v8.18) | n/a |
+| `typescript-sdk/` checkout | read while authoring to lift the display-name precedence (`metadataUtils.ts`), the eight reserved keys (`constants.ts`), and the `AuthInfo` shape (`types.ts:435`) — G1 parity | already present at repo root | n/a |
+
+### Environment Configuration
+
+- **Environment variables / secrets / config files / free ports:** none required.
+- **Racket version:** ≥ 8.x (verified for item 013: v8.18 [cs]).
+- **Working directory:** run `raco test` from the **repo root** so the `mcp/...` collection path resolves.
+- **How to run:**
+  - `raco make mcp/core/shared/metadata-utils.rkt mcp/core/shared/auth.rkt` — compile both modules clean.
+  - `raco test mcp/core/shared/` — run all shared-collection tests (picks up the two new test files + the existing `uri-template` + `tool-name-validation` suites recursively), exit 0.
+- **Pre-flight checks:**
+  - `racket --version` → ≥ 8.0.
+  - `raco test mcp/core/shared/` (pre-change) → green (items 013+014's 192 checks pass) so the baseline is known.
+
+### Manual Validation Checklist
+
+- [ ] `racket --version` ≥ 8.0.
+- [ ] `raco make mcp/core/shared/metadata-utils.rkt mcp/core/shared/auth.rkt` → exit 0, no warnings.
+- [ ] `raco test mcp/core/shared/` → exit 0; all checks pass (new + existing).
+- [ ] `raco test mcp/core/validators/` → exit 0 (300 checks, untouched).
+- [ ] `raco test mcp/core/util/` → exit 0 (102 checks, untouched).
+- [ ] REPL smoke (metadata): `(require (file "mcp/core/shared/metadata-utils.rkt"))` then `(get-display-name (hasheq 'name "n" 'title "" 'annotations (hasheq 'title "a")))` → `"a"`; `(length reserved-meta-keys)` → `8`; `(reserved-meta-key? 'traceparent)` → `#t`.
+- [ ] REPL smoke (auth): `(require (file "mcp/core/shared/auth.rkt"))` then `(auth-info-expired? (make-auth-info #:token "t" #:client-id "c" #:expires-at 100) 200)` → `#t`; `(auth-info-has-scope? (make-auth-info #:token "t" #:client-id "c" #:scopes (list "read")) "read")` → `#t`; `(string? (auth-info-resource (make-auth-info #:token "t" #:client-id "c" #:resource "https://x/mcp")))` → `#t`.
+- [ ] Grep both modules for `net/` / `racket/system` / `racket/tcp` / `racket/udp` / `subprocess` → **no match** (portability discipline; item 017 proves transitively).
+- [ ] Confirm neither module contains `(module+ test …)`.
+
+### Expected Outcomes (concrete)
+
+- **`get-display-name`:** the seven precedence cases return exactly `"t"`, `"a"`, `"n"`, `"n"`, `"a"`, `"t"`, `"n"` respectively (see Acceptance Criteria). Empty-string title NEVER returned.
+- **Reserved keys:** `(length reserved-meta-keys)` = **8**; `TRACEPARENT-META-KEY`/`TRACESTATE-META-KEY`/`BAGGAGE-META-KEY` = `"traceparent"`/`"tracestate"`/`"baggage"`; `reserved-meta-key?` accepts both string + symbol forms; an arbitrary user key → `#f`.
+- **`_meta` round-trip:** a written reserved key reads back identical; a pre-existing non-reserved key survives untouched; `meta-set` is non-mutating; `traceparent` survives the S1 `json->request-meta` → `request-meta->json` cycle verbatim.
+- **`auth-info`:** exactly 6 fields (`token`/`client-id`/`scopes`/`expires-at`/`resource`/`extra`); minimal construct → `scopes='()`, optionals `#f`; `auth-info-expired?` true at/after expiry (`<=`), false before / when `#f`; `auth-info-has-scope?` true iff member; json round-trip reconstructs (`check-equal?`) with camelCase keys + omitted absent optionals; `resource` is a `string?`.
+- **Counts:** `raco test mcp/core/shared/` exits 0 with the two new suites' checks added to the existing 192; sibling suites stay at 300 (validators) / 102 (util).
+- **Portability:** no `net/*` / subprocess / socket reference in either module.
+
+### Validation Documentation Template
+
+Record at completion (fill the bracketed values):
+
+```
+Item 015 — validation record
+- Racket version: [racket --version output]
+- raco make (both modules): [exit code; warnings?]
+- raco test mcp/core/shared/   : [N checks passed / 0 failed]
+    - metadata-utils-test.rkt alone: [N]
+    - auth-test.rkt alone:           [N]
+    - (existing uri-template + tool-name-validation: 192)
+- raco test mcp/core/validators/ : [300 expected]
+- raco test mcp/core/util/       : [102 expected]
+- get-display-name 7 cases:      [pass/fail]
+- reserved-meta-keys length:     [8]
+- trace constants:               [traceparent/tracestate/baggage present]
+- _meta S1 envelope round-trip:  [traceparent survived: yes/no]
+- auth-info field surface:       [exactly 6 fields: yes/no]
+- auth-info-expired? boundary:   [<= at expiry: pass/fail]
+- json round-trip (full+minimal):[check-equal? pass/fail; optionals omitted: yes/no]
+- resource is string:            [yes/no]; net/url imported: [no expected]
+- (module+ test …) present:      [no expected]
+- net/* | subprocess | socket grep: [no match expected]
+- Decisions & Trade-offs (h) updated with as-built require lists + counts: [yes/no]
+```
+
 ---
 
 ## Completion Reminder
 
-On completion, the implementer MUST:
+On completion, **`docs/aide/progress.md` MUST be updated** (the icon discipline is forward-only — 📋 → 🚧 → ✅, never reverted):
 
-1. **Update `docs/aide/progress.md` — Stage S1 barrel deliverable line.** Flip the
-   `mcp/core/types/main.rkt` + `mcp/core/main.rkt` barrels line (currently 📋 at progress.md
-   line ~52) 📋 → **✅**. Never revert an icon backward.
-2. **Touch the `mcp/core/types/test/` + `mcp/core/test/errors-test.rkt` deliverable line**
-   (progress.md line ~53) ONLY to the extent this item's own new tests land alongside it — per
-   Acceptance criteria's note, do NOT mark that line fully ✅ on this item alone if item 009's
-   closeout demo/test pass is still expected to touch it; coordinate the exact wording with
-   whatever item 009 finds when it runs (a brief note like "barrel + portability + curation
-   tests added by item 008; demo + final closeout by item 009" is acceptable if the line is
-   shared).
-3. **Per queue-001, this item completes Stage S1's M1+M2 deliverable list in full EXCEPT item
-   009's closeout demo.** With items 001–008 all ✅, Stage S1's `### Deliverables` list
-   (roadmap.md lines 78–86) is entirely satisfied except the demo script item 009 separately
-   adds; the progress.md Stage S1 status line itself (`## Stage S1 — … — 📋` at progress.md line
-   41) should likely flip to 🚧 or remain 📋 pending item 009's own closeout pass — DO NOT flip
-   the Stage S1 HEADER to ✅ in this item (that is item 009's call once the demo + final
-   parity-matrix/progress edits land, per queue-001 Item 009's own description "Completes Stage
-   S1; unblocks queue-002 / Stage S2").
-4. **Touch the §9 parity-matrix rows** (if `docs/aide/roadmap.md` §9 exists with per-module
-   rows distinct from the Stage-S1 testing-criteria bullet already touched by items 006/007) to
-   note that `core/types/*` and `core/errors/*` now have a curated barrel entry point, mirroring
-   the TS SDK's public/internal package-export split (architecture §1.3) — confirm whether §9 is
-   a separate section from what's already been touched, and update only what is genuinely new
-   (the barrel's existence), not re-litigate the per-module `partial`/`full` status items
-   003–007 already set.
-5. Leave items 001–007's own files and their individual progress.md/parity-matrix entries
-   UNTOUCHED beyond what is explicitly required above — this item adds two new files + tests; it
-   does not re-open or re-grade the already-✅ deliverables it re-exports.
+- Flip the **Stage S2 deliverable lines** for `mcp/core/shared/metadata-utils.rkt` (M5c) and `mcp/core/shared/auth.rkt` (M5d) from 📋 → 🚧 (on start) → ✅ (on completion), each with a one-line as-built summary mirroring the items 013/014 deliverable lines (transliteration source, key decisions, check count).
+- **Do NOT** flip the parity-matrix `metadataUtils` / `auth` rows or the Stage-S2 acceptance boxes here — those belong to **item 017** (the collection-wide portability sweep + parity-row flips) and **item 018** (the S2 demo + closeout). This item owns only its two deliverable lines.
+- Record the as-built require lists, the exact `raco test` check counts, and the `get-display-name` input form + `resource` form in **Decisions & Trade-offs (h)**.

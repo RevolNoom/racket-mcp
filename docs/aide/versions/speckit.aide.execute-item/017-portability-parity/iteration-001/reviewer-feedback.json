@@ -1,0 +1,7 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "NOTE (non-blocking): verbatim check-portable! at s2-portability-test.rkt:110-115 is retained per spec acceptance line 61 (copy mandate) but unused by the sweep, which uses check-root instead. Intentional dead code, not a defect."
+  ]
+}

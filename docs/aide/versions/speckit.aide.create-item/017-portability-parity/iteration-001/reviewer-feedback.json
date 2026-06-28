@@ -1,0 +1,11 @@
+{
+  "overall_rating": 7,
+  "needs_revision": true,
+  "key_issues": [
+    "Non-vacuity guard (> (set-count visited) 1) is too weak — PROVEN: a base-dir-truncated metadata-utils walk that never reaches the S1 subtree still reports visited=79 and passes green. Real floor is ~80 (racket/base closure). Three-source-dir layout (validators/util/shared) raises the truncation risk vs the single-dir templates. Fix: assert an S1-edge path is present in visited per root + mandate per-root base-dir (path-only <root>).",
+    "progress.md:82 ([x] 'raco test over all S2 modules passes') and :79 (Tests under shared/test/) over-claim while stdio.rkt (item 016, M5e) is unbuilt and progress.md:87/78 stay 📋/[ ] — flipping them ships a self-contradicting progress doc. Fix: mandate an explicit 'except M5e/stdio, deferred to 016 per roadmap.md:118' scope caveat.",
+    "Factor-path regression net has a hole: the only command that runs main-test.rkt (raco test mcp/core/test/) is marked 'Optionally' (line 93). If the helper is factored and that run skipped, a main-test.rkt regression ships green. Fix: make raco test mcp/core/test/ a mandatory acceptance command.",
+    "No teeth/mutation check: nothing forces the implementer to prove the sweep goes RED when a banned module IS reachable. With the weak guard there is otherwise no evidence the assertions bite. Add: temporarily (require racket/tcp) in one root, confirm RED, revert.",
+    "Minor: the stdio carve-out comment should say excluded 'as a root' (not 'the walk isolates stdio') — a future S2 module importing stdio would, correctly, surface stdio's banned imports as that module's portability regression."
+  ]
+}
