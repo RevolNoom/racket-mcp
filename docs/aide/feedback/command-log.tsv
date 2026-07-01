@@ -1,0 +1,17 @@
+# AIDE command ledger — append-only.
+# execute-item's worker appends each non-trivial build/test/validate command it
+# runs, via .claude/skills/speckit.aide.self-improve/scripts/log-command.sh.
+# The self-improve step reads this with tally-commands.sh to spot commands that
+# recur across items and harvest them into docs/aide/scripts/.
+# Columns: <ISO-timestamp>\t<item-number>\t<normalized-command>
+2026-06-29T00:42:50Z	018	raco test mcp/core/demo/s<N>-demo.rkt && raco test mcp/core/validators/ mcp/core/util/ mcp/core/shared/
+2026-06-29T11:25:20Z	020	raco test mcp/transport/test/in-memory-test.rkt
+2026-06-29T11:25:20Z	020	raco test mcp/transport/transport.rkt
+2026-06-29T11:44:40Z	020	raco test mcp/transport/test/in-memory-test.rkt
+2026-07-01T00:38:29Z	021	raco test mcp/transport/test/
+2026-07-01T00:39:43Z	021	raco make mcp/transport/main.rkt
+2026-07-01T14:04:22Z	021	raco make mcp/transport/main.rkt
+2026-07-01T14:05:40Z	021	raco test mcp/transport/test/
+2026-07-01T14:05:40Z	021	raco test mcp/transport/
+2026-07-01T14:52:19Z	022	raco test mcp/transport/test/portability-test.rkt
+2026-07-01T14:52:19Z	022	bash docs/aide/scripts/test-transport.sh

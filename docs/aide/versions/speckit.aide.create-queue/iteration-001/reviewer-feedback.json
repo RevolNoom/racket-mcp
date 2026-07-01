@@ -1,11 +1,16 @@
 {
-  "overall_rating": 6,
+  "overall_rating": 8.5,
   "needs_revision": true,
   "key_issues": [
-    "Batch is ~two weeks, not ~one: the queue delivers ALL of Stage S1 plus ALL of Stage S2 (M3, M4, M5a-e are the entirety of S2's modules, not an 'early head start'). Re-scope to S1-only (queue 002 takes S2), or split the oversized items and trim the S2 tail.",
-    "Item 003 too large: structs+contracts for every request/response/notification/error across BOTH spec revisions is multi-day. Split into one item per revision (2025-11-25; 2026-07-28 incl. _meta envelope), each with its own round-trip + contract-rejection tests.",
-    "Item 007 bundles two modules (M3 provider port + the hand-rolled default JSON-Schema provider) and is too large. Split into provider.rkt (port + stub conformance) and from-json-schema.rkt (keyword subset + Ajv-cross-checked accept/reject suite).",
-    "Item 010 lumps three things of very different size/cohesion: M5d auth structs (tiny), M5e stdio framing (non-trivial, lone I/O module), and the S2 demo (a stage-closeout artifact depending on items 007/009/010). Separate them; make the S2 demo its own closeout item.",
-    "Non-blocking: item 006 triple-duties (barrels + portability load test + S1 demo) but is acceptable as the S1 closeout; flag only. Ensure the typescript-sdk/ checkout is actually available to the Worker, since several acceptance criteria assert byte-for-byte/Ajv parity against it."
+    "Item count is internally inconsistent: header (line 9) says '6 items' and the Why-this-batch prose (line 17) says barrel and test suite 'each earn separate items', but only 5 items exist (019-023) because item 021 bundles barrel + test suite. Reconcile the count with the actual item list.",
+    "Item 020 (in-memory adapter, M10) is not independently testable: it delivers the substantive async engineering but defers all behavioral tests to item 021, leaving only a module-loads smoke check as its acceptance gate. 020 can pass while async/ordering/close semantics are broken.",
+    "Item 020 deviates from the validated S2 house style, where every implementation item ships with its own tests in the same item (011/012/013/014/016). Move core behavioral tests (round-trip, async-delivery observation, on-close on both endpoints, on-error on induced failure) into 020; keep concurrency/stress + extra-info + ported fixtures in 021."
+  ],
+  "strengths": [
+    "Scope is exactly Stage S3 (M6 + M10); no S4 leakage and no missing S3 deliverable.",
+    "Sequential numbering 019-023 continues cleanly from queue-002 item 018, no gaps or dupes.",
+    "Both architectural invariants captured as explicit acceptance criteria: async cross-thread delivery (send returns before peer on-message) and related-request-id defined-but-inert-until-S6a/M8 (do not strip).",
+    "Closeout references verified accurate against progress.md (acceptance boxes lines 106-111, Stage S3 status line 95, parity rows transport.ts/inMemory.ts line 110).",
+    "Correct dependency posture (L0 only) enforced by item 022 restricted-load portability test; granularity appropriate for a small stage (not padded)."
   ]
 }

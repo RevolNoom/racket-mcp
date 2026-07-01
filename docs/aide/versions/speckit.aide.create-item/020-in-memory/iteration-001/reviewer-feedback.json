@@ -1,0 +1,18 @@
+{
+  "overall_rating": 6.5,
+  "needs_revision": true,
+  "key_issues": [
+    "C1 CRITICAL: T4 uses nonexistent function semaphore-wait/timeout (verified undefined at REPL) - FIFO test will not compile; use (sync/timeout 1 done)",
+    "C2 CRITICAL: T3 has no timeout/watchdog - under buggy inline delivery it deadlocks and hangs raco test/CI forever instead of failing; wrap in a sub-thread + (sync/timeout 5 t) -> (fail)",
+    "C3 CRITICAL: pre-start queue uses cons (prepend) -> drains LIFO, violating FIFO; bug masked because T8 queues only ONE message; spec must reverse drain order and T8 must queue >=3 messages with order assertion",
+    "C4 CRITICAL: transport-start idempotency claimed in AC-2 but untested; double-start could spawn 2 relay threads splitting the stream; add double-start + 3-message ordered-delivery test",
+    "S1: send-after-close raises per impl but is untested; add check-exn and pin the error type",
+    "S2: AC-6 no-double-fire on-close is unfalsifiable - T5 uses a boolean flag; use a counter and assert == 1",
+    "S3: contradiction - extra-info passed as literal #f vs (make-message-extra-info); item 021 will assert message-extra-info delivery, so pass a real all-#f message-extra-info not #f",
+    "S4: started peer with no on-message handler -> relay silently drops message; diverges from TS _messageQueue; behavior undefined in spec and untested",
+    "S5: T6 checks on-error fired but not that relay thread survived the exception; add follow-up successful send",
+    "S6: getters (transport-on-message etc.) and transport-session-id (#f) listed in AC-2 but untested",
+    "S7: T3/T5/T6 use (sleep 0.05) timing assumptions - flaky under CI load; replace with done-semaphore + sync/timeout",
+    "S8/S9: close-on-never-started endpoint and throwing on-close handler (TS try/finally) unaddressed"
+  ]
+}

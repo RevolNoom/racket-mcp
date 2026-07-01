@@ -1,0 +1,14 @@
+{
+  "overall_rating": 7,
+  "needs_revision": true,
+  "key_issues": [
+    "C1 (critical): message-extra-info and transport-send-options field contracts are documented but not required to be enforced and have no rejection test — vacuous-contract trap. auth.rkt:81 uses define/contract as house-style precedent; require define/contract constructors + add check-exn exn:fail:contract? tests for bad fields (e.g. #:session 42, #:auth non-auth-info, #:related-request-id 'sym), or delete the contract columns.",
+    "C2 (critical): the 'each generic method has a default impl that raises' claim is untested. Add a partial stub omitting transport-send and assert (check-exn exn:fail? ...) so incomplete impls are provably caught.",
+    "C3 (critical): on-message sink test captures the extra argument but never asserts its shape — the whole reason message-extra-info lives here. Invoke on-message with a real make-message-extra-info and assert (check-pred message-extra-info? got-extra) + field value; also test the #f/absent-extra path.",
+    "C4 (critical): transport-send only tested in 2-arg form. Pin the generic arity and test both (transport-send s msg) and (transport-send s msg opts); add (check-not-exn ...) with a non-#f related-request-id to prove port-level accept-and-ignore.",
+    "S1 (suggested): integer related-request-id branch (exact-integer? arm) untested — only string used. Add #:related-request-id 42.",
+    "S2 (suggested): zero-arg (make-message-extra-info) all-#f case untested (asymmetric with opts0).",
+    "Parity note: 'session' field has no TS MessageExtraInfo counterpart (TS has request/authInfo/closeSSE only) — sanctioned by queue-003.md:28 but should be flagged in Decisions and disambiguated from transport-session-id.",
+    "Prerequisites verified OK: make-auth-info two-required-keyword signature, json-object? export via mcp/core/main.rkt, L0/L1 import boundary, R2 size budget (202 lines)."
+  ]
+}

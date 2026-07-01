@@ -1,0 +1,40 @@
+{
+  "verdict": "approved",
+  "ac_results": {
+    "AC-1": "pass",
+    "AC-2": "pass",
+    "AC-3": "pass",
+    "AC-4": "pass",
+    "AC-5": "pass",
+    "AC-6": "pass",
+    "AC-7": "pass",
+    "AC-8": "pass",
+    "AC-9": "pass",
+    "AC-10": "pass",
+    "AC-11": "pass",
+    "AC-12": "pass"
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "ac": "AC-2",
+      "file": "mcp/transport/test/in-memory-test.rkt:181",
+      "issue": "T9 double-starts the sender 'a', whose relay reads 'a's inbox and is irrelevant to delivery into 'b'; a duplicate-relay-thread regression would be invisible. Even on the receiver, two relay threads competing on one async-channel consume each item once (no duplication), so the 'no duplication' claim is not actually proven. Impl is correctly idempotent, so the AC passes; this is a test-coverage gap only.",
+      "fix": "Double-start the receiver 'b' and assert exact order over 3+ messages (received == '(1 2 3)); a split stream from competing readers would scramble order. Optional, non-blocking."
+    },
+    {
+      "severity": "minor",
+      "ac": "AC-4",
+      "file": "mcp/transport/in-memory.rkt:39",
+      "issue": "transport-start sets started?=#t before draining the pre-start queue. A concurrent send that observes started?=#t mid-drain can async-channel-put directly ahead of still-draining buffered items (FIFO inversion); the mirror case can append to a queue that is never drained (lost message). Not exercised by the single-threaded suite.",
+      "fix": "Document in Decisions that pre-start FIFO holds only when sends and the peer's transport-start are not concurrent, or serialize the started?-flip + drain under a lock. No code change required for this item."
+    },
+    {
+      "severity": "minor",
+      "ac": "AC-11",
+      "file": "mcp/transport/in-memory.rkt:15",
+      "issue": "racket/contract is required but unused (no define/contract or contract-out in the module). Permitted by AC-11, so not a violation, just dead weight.",
+      "fix": "Drop the (require racket/contract) line, or add it back when a contract-out provide is introduced."
+    }
+  ]
+}

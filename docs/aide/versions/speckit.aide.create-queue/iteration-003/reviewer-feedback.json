@@ -1,0 +1,9 @@
+{
+  "overall_rating": 8.5,
+  "needs_revision": false,
+  "key_issues": [
+    "Item 028 instructs updating a 'roadmap §9 parity-matrix row' but progress.md item 017 records that roadmap §9 has no materialized parity table; the protocol.ts->partial state belongs in the progress.md 'Parity matrix progression' prose section. Reword to avoid the Worker hunting for a nonexistent table. (Non-blocking; verbatim carry-over from approved queue-003 item 022.)",
+    "Item 029 closeout omits the specific progress.md S4 acceptance-box line numbers (lines 123-132) and the Stage S4 status row (line 30, overview table) that queue-003's closeout (item 023) cited; add them for an unambiguous edit. (Minor.)",
+    "Item 027 partly restates the correlation/timeout/cancel/progress/server-initiated tests already landed inline in items 024-026; its net-new value is only the no-HOL-blocking (Concurrency NFR) and malformed-input (Reliability NFR) assertions. Acceptable as the house-style consolidation/port item, but could state its net-new scope more explicitly. (Minor.)"
+  ]
+}

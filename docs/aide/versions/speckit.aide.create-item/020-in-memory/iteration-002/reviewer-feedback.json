@@ -1,0 +1,13 @@
+{
+  "overall_rating": 9,
+  "needs_revision": false,
+  "key_issues": [
+    "GREEN-LIGHT: all iter-001 criticals (C1-C4) and suggestions (S1-S9) resolved; no regressions; implementation-ready.",
+    "VERIFIED watchdog soundness via raco test: assertion failures inside the spawned watchdog thread ARE reported (rackunit tracking is thread-inherited -> exit 1), and a real hang is converted to (fail ...) -> exit 1. So run-with-watchdog does not swallow failures and is not racy for these single-threaded bodies. The earlier swallow worry is empirically refuted.",
+    "VERIFIED message-extra-info? and make-message-extra-info are exported from transport.rkt; T2 check-pred is valid. semaphore-wait/timeout (iter-001 compile blocker) is gone; T4/T8 use (sync/timeout 1 done).",
+    "C3 FIFO drain is now unambiguous (append-to-end / drain-in-list-order / never cons across step2, step4, Decisions) and T8 genuinely exercises 3-message ordering.",
+    "Post-start no-handler drop is a sound, documented deliberate divergence from TS; item 021 installs handler before send so unaffected.",
+    "NON-BLOCKING NIT: prose claims 'sleep only in T5' but T3's nested completion-poller uses (sleep 0.01); functionally fine, optionally replace poll-loop with a done-channel.",
+    "CARRY-FORWARD (not a blocker for 020): downstream engine/client must install on-message before a peer can send post-start, else silent message loss with no on-error; add a one-line reminder in the engine-wiring item."
+  ]
+}

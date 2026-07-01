@@ -1,0 +1,4 @@
+canonical: docs/aide/items/020-in-memory-transport.md
+approved-iteration: 002
+verdict: 9/10 needs_revision=false (reviewer empirically verified via raco test)
+carry-forward: downstream engine-wiring item (S4) must install on-message BEFORE a peer can send post-start, else silent drop with no on-error.

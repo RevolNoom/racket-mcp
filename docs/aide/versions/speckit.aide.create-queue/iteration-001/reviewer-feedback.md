@@ -1,68 +1,61 @@
-# Reviewer Feedback — Queue 001 (Iteration 001)
+# Reviewer Feedback — Queue 003 (Stage S3: Transport port + in-memory adapter, L1 part 1)
 
-**Snapshot reviewed:** `docs/aide/versions/speckit.aide.create-queue/iteration-001/queue-001.md`
-**Reviewed against:** `docs/aide/vision.md`, `docs/aide/roadmap.md`, `docs/aide/progress.md`, and the `speckit.aide.create-queue` SKILL format requirements.
-**Verdict:** Needs revision (substantive sizing + scope-boundary problems, not nitpicks).
-**Overall rating:** 6/10.
-
----
-
-## Summary
-
-This is a genuinely strong first queue in most respects. It correctly identifies that progress is all-📋 and starts at the bottom of the dependency graph (S1, L0). The layer-dependency ordering is impeccable: every item depends only on items earlier in the queue (S1 has no deps; S2 depends only on S1). Numbering is correct (sequential 001–010, zero-padded, no gaps, no duplicates; correct for a first queue). The format is correct — every item is a `### Item NNN: Title` block followed by a description. Testability is stated for every item and is concrete (named test files, TS-fixture cross-checks). The detail-requirement fidelity to the roadmap is excellent: N1 façade (item 004), J3 no-batch-guard (item 002), the bidirectional encode/decode error mapping with the -32042/-32004 decode cases (item 005), the M5e "orphaned until S6a" note (item 010), the validator minimum keyword set (item 007), and the restricted-load portability test (item 006) are all faithfully carried through.
-
-The problems that push this to "needs revision" are **sizing and batch-scope**, not correctness. In short: this queue tries to deliver **all of Stage S1 plus all of Stage S2** in ten items, and two of those items (003 and 007) are each multi-day efforts on their own. The result is a batch that is closer to two weeks than one, with two under-sized items masking two over-sized ones.
+**Artifact:** `docs/aide/versions/speckit.aide.create-queue/iteration-001/queue-003.md`
+**Overall rating:** 8.5 / 10
+**Needs revision:** Yes — two surgical fixes (one factual inconsistency, one independent-testability gap). Both quick; the queue is otherwise implementation-ready.
 
 ---
 
-## What is correct (keep it)
+## Queue Summary
 
-1. **Stage selection and entry point.** Starting at S1 because progress is all-📋 is exactly right. The "Why this batch" section correctly reasons from the dependency graph.
-2. **Layer-dependency ordering.** No item depends on an un-built layer. Within the queue, item 004 (types façade) sensibly follows 003 (per-revision specs); 005 (errors) can stand alone; 006 (barrels) correctly comes after 001–005; the S2 items (007–010) all sit on top of S1. Clean.
-3. **Numbering / format / no duplicates.** Sequential 001–010, three-digit, `### Item NNN: Title` throughout. Matches the SKILL format block exactly. First queue correctly starts at 001.
-4. **Detail-requirement fidelity.** Listed above — the roadmap's "flashpoint" requirements are all present and correctly attributed. This is the strongest part of the queue.
-5. **Testability.** Every item names where tests live and what they assert, with TS-checkout cross-checks where the roadmap calls for them.
+5 items (019–023). 3 Ready, 2 Needs Refinement, 0 Too Large.
 
----
-
-## Substantive issues (require revision)
-
-### Issue A — The batch is ~two weeks, not ~one. (Sizing / week-sized-batch)
-The queue explicitly scopes "Stage S1 in full, then early Stage S2 (M3, M4, M5a–M5e)." But that "early S2" is in fact **the entirety of S2's module list** — M3, M4, M5a, M5b, M5c, M5d, M5e are every module S2 defines. So this is not "S1 plus a head start on S2"; it is "S1 + S2 complete." The roadmap sizes **each** of S1 and S2 as roughly one week on its own (see roadmap "sized to be deployable locally in roughly one week" applied per stage, and the stage table treating S1 and S2 as separate stages). Folding both into one ten-item queue is the core problem and is what forces the under-sizing in Issue B.
-
-**Recommendation:** Scope this queue to **Stage S1 only** (items 001–006), and add ~3–4 more genuinely S1-sized items by decomposing the two oversized items (below) so the batch is a full, well-sized week of L0-part-1 work. Defer M3/M4/M5 (S2) to queue 002. If the team prefers to keep some S2 in this batch, then S1's oversized items must be split and the S2 tail trimmed to one or two modules — but you cannot have both "all of S1+S2" and "one week."
-
-### Issue B — Item 003 is too large (needs decomposition).
-"Per-revision structs + flat contracts for **every** request, response, notification, and error type in **each** of two revisions" is the single biggest modeling task in the whole foundation. The TS `spec.types.*.ts` files are large; reproducing every message shape as a struct + contract, for two revisions, with `_meta` envelope handling, round-trip tests, and contract-rejection tests, is multiple days by itself. Bundling both revisions into one item also hides progress and makes the item hard to mark done incrementally.
-
-**Proposed split:**
-1. **Item: spec types — 2025-11-25 revision** — structs + flat contracts for every request/response/notification/error in `spec.types.2025-11-25.ts`; round-trip + contract-rejection tests.
-2. **Item: spec types — 2026-07-28 revision** — same for the RC revision, including the `_meta` reserved-key envelope fields it introduces; round-trip + contract-rejection tests, plus a test asserting the RC-only fields are present.
-
-This split also makes the dependency for item 004 (the N1 façade) cleaner: the façade unions two now-independently-verified revision modules.
-
-### Issue C — Item 007 bundles two modules (M3 provider port + default provider) and is too large.
-Item 007 implements both the `racket/generic` provider **port** (`provider.rkt`) and the **default Racket-native provider** (`from-json-schema.rkt`) — the latter being a hand-rolled JSON-Schema subset evaluator across `type`/`properties`/`required`/`enum`/`items`/`format`, each cross-checked against a TS Ajv baseline. The default provider alone is a substantial, edge-case-heavy implementation. (This only needs splitting if S2 work stays in this queue; if S2 is deferred per Issue A, fold the split into queue 002.)
-
-**Proposed split (for whichever queue carries S2):**
-1. **Item: validator-provider port** — `provider.rkt` only: the `gen:`-style interface (compile schema → validator; validate → ok/errors) plus a trivial conformance test against a stub provider.
-2. **Item: Racket-native default provider** — `from-json-schema.rkt`: the documented keyword subset with the ≥1-accept/≥1-reject-per-keyword Ajv-cross-checked suite; unsupported-keyword documentation.
-
-### Issue D — Item 010 bundles two unrelated M5 concerns **and** carries the S2 demo. (Cohesion / sizing)
-Item 010 lumps `auth.rkt` (M5d — pure structs/helpers, tiny) with `stdio.rkt` (M5e — byte-stream framing with partial-frame buffering, non-trivial and I/O-touching), and then also tacks on "the S2 demo script." These are three different things; M5d is trivially small while M5e + the demo are not. The demo as written ("register a JSON Schema → validate … expand/match a URI template … encode/decode a stdio frame") depends on items 007, 009, and 010 all being done — so it is really a stage-closeout artifact, not part of one module item. (Again, contingent on S2 staying in scope.)
-
-**Recommendation:** Separate M5d (can join the other tiny M5a–c shared-utils item) from M5e (its own item, given the framing/buffering logic and that it is the lone I/O module). Make the S2 demo its own small closeout item (mirroring how item 006 is the S1 closeout/demo), depending on the S2 module items.
+- 019 Transport port (M6) — Ready
+- 020 In-memory adapter (M10) — Needs Refinement (behavioral tests deferred → not independently verifiable)
+- 021 Barrel + test suite — Needs Refinement (absorbs 020's real verification; conflicts with stated item count)
+- 022 Portability sweep + parity touch — Ready
+- 023 Demo + closeout — Ready
 
 ---
 
-## Minor observations (non-blocking)
+## What the queue gets right (verified, not assumed)
 
-- **Item 006 double-duties as barrels + portability test + S1 demo.** This is acceptable as an S1 closeout item (it parallels how the roadmap groups the S1 demo with the load test), and none of the three sub-parts is large, so I am **not** requiring a split — but flag it: if the restricted-namespace load test proves fiddly, consider promoting it to its own item.
-- **Output path note (informational, not the queue's fault).** The SKILL says the live queue lives at `docs/aide/queue/queue-NNN.md` and is snapshotted into the iteration dir. I reviewed the snapshot as instructed; just confirming the canonical copy should also exist at `docs/aide/queue/queue-001.md`.
-- **Cross-checking against the TS checkout.** Several items assert byte-for-byte / Ajv-baseline parity against `typescript-sdk/`. Good. Worth ensuring the Worker actually has that checkout available; if it does not, those acceptance criteria become unverifiable. (Not a queue defect — an execution prerequisite.)
+- **Scope boundary is correct.** Items cover exactly the roadmap S3 deliverables (`transport.rkt` M6, `in-memory.rkt` M10, `main.rkt` barrel, `in-memory-test.rkt`, portability load test, parity rows, demo). No S4 leakage — protocol engine M11 and real transports M7/M8/M9 are explicitly deferred to queue-004 (header line 7). No missing S3 deliverable.
+- **Numbering is clean.** 019–023 continues sequentially from queue-002's item 018. No gaps, no dupes.
+- **Both architectural invariants are captured explicitly, as acceptance criteria — not buried as implementation detail:**
+  - *Async cross-thread delivery* — batch note (line 21) + items 020/021 require `send` to return **before** the peer `on-message` runs, separate thread, FIFO-per-direction, N concurrent with no loss / no HOL blocking. Item 021 even specifies the test mechanism (flag/box set after `send` but before handler completes, or a sync that would deadlock under inline delivery). Strong.
+  - *`related-request-id` defined-but-inert-until-S6a* — batch note (line 19) + item 019 + item 020 all flag it as a routing hint that in-memory/stdio ignore, first load-bearing in S6a/M8, "do NOT strip as dead weight." Exactly right.
+- **Closeout references are accurate (checked against progress.md).** Item 023's "flip Stage S3 acceptance boxes (lines 106–111)" matches the actual checkbox block (106–111) and the Stage S3 status marker (📋, line 95). Item 022's parity rows `transport.ts` / `inMemory.ts` map to the real progress row at line 110. These are not hand-waved line numbers — they resolve correctly.
+- **Dependency hygiene matches roadmap.** S3 imports L0 only (S1 types/errors + S2 `auth.rkt` for `AuthInfo` in `message-extra-info`); no subprocess/socket/web-server. Item 022 enforces this with a restricted-load test. Consistent with roadmap S3 deps (lines 150–151).
+- **Granularity is appropriate.** 5 items for a small stage is correct; padding to ~10 would be artificial. No item is too large.
 
 ---
 
-## Recommendation to team-lead
+## Detailed Feedback
 
-Revise. The fix is primarily **re-scoping** (drop S2 to queue 002 so this is a clean, full S1 week) **plus two decompositions** (item 003 → per-revision split; and, wherever S2 lands, item 007 → port/default split and item 010 → M5d/M5e/demo split). The technical content and detail-fidelity are already very good, so this should be a fast revision: no item needs to be rewritten for correctness, only resized and rehomed.
+### Issue 1 — Item count is internally inconsistent (must fix; factual)
+- **Where:** header line 9 ("**Sizing:** 6 items") and "Why this batch" line 17 ("the **barrel**, **test suite**, portability sweep, and demo + closeout each earn separate items").
+- **Problem:** Only 5 items exist (019–023). Item 021 bundles the barrel **and** the test suite into one item, contradicting both the "6 items" count and the line-17 prose that says they "each earn separate items."
+- **Recommendation:** Pick one and make the document consistent:
+  - (a) Change line 9 to "5 items" and reword line 17 so barrel + test suite are described as one item; **or**
+  - (b) Split 021 into two items (barrel = 021, test suite = 022, renumber portability→023, demo→024) to match the "6 items" claim.
+  - Option (b) also resolves Issue 2 more cleanly if combined with moving the core tests into 020 (see below). Recommend resolving Issue 2 first, then setting the count to whatever falls out.
+
+### Issue 2 — Item 020 is not independently testable; deviates from the house test-pairing pattern (should fix)
+- **Where:** item 020 ("Testable: deferred to the dedicated suite in item 021 ... a smoke check that the module loads and a pair constructs cleanly ... is sufficient here") and item 021 (owns all behavioral tests).
+- **Problem:** Item 020 delivers what the queue itself calls "the substantive engineering" (async cross-thread relay, FIFO, concurrency, close/error propagation) but its only acceptance gate is "module loads + pair constructs." Its real correctness is verified only by a *later* item. That violates the independently-testable criterion: 020 can be marked done while the async/ordering/close semantics are silently broken, caught only in 021.
+- **House-style deviation:** Every implementation item in queue-002 ships with its own test in the same item (011 provider + suite, 012 schema + dual-form test, 013 uri-template + round-trip, 014 tool-name + accept/reject table, 016 stdio + standalone harness). Item 020 breaks that validated pattern by externalizing its tests.
+- **Recommendation:** Move the **core behavioral tests into item 020** so the adapter and its proof ship together: each-direction round-trip, asynchronous-delivery observation (`send` returns before peer handler), close fires `on-close` on both endpoints, induced relay failure fires `on-error`. Leave item 021 as the **barrel** + the **extended/stress coverage** (N-concurrent no-loss / FIFO / no-HOL-blocking, `message-extra-info` delivery, ported `util/inMemory.test.ts` expectations). This makes 020 independently verifiable, restores parity with the S2 house style, and naturally yields a 6-item batch that matches the line-9 count.
+
+---
+
+## Minor / optional
+
+- Item 021's "Port the relevant `util/inMemory.test.ts` expectations **if present**" — the reference-impl footer (line 6) already hedges "if present." Fine to leave, but if the Worker should hard-require parity with a known fixture file, confirm the file exists in `typescript-sdk/` and drop the hedge; otherwise keep as-is.
+- Item 022 sets parity rows to `partial` with "full conformance exercise deferred to S9" — consistent with the S2 precedent (item 017) and the progress parity-matrix progression note (line 336). No change needed; noted for confirmation only.
+
+---
+
+## Verdict
+
+Tightly scoped, invariant-aware, accurate line references, correct dependency posture. The two issues are surgical: a one-line count/prose fix and relocating ~4 behavioral tests from 021 into 020. Resolve both and this is a green-light.
