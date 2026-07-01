@@ -1,6 +1,6 @@
-# Protected Invariants — read-only for feedback-loop
+# Protected Invariants — read-only for self-improve
 
-The feedback-loop step has full authority to rewrite any AIDE skill, EXCEPT the
+The self-improve step has full authority to rewrite any AIDE skill, EXCEPT the
 invariants below. These exist to keep the unattended `--auto` chain from going
 runaway or losing its single engine. Feedback must never edit, weaken, or
 remove them. If feedback believes one must change, it writes the proposal to
@@ -18,8 +18,8 @@ This is the only thing preventing an infinite loop. Immutable.
 
 Only `speckit.aide.execute-item` advances the pipeline (decides the next
 create-item / create-queue / stop). `create-item`, `create-queue`, and
-`feedback-loop` may chain *into* the next step exactly as their current specs
-say, but feedback-loop in `--auto` MUST return control to its caller and MUST
+`self-improve` may chain *into* the next step exactly as their current specs
+say, but self-improve in `--auto` MUST return control to its caller and MUST
 NOT itself advance the pipeline. No second engine.
 
 ## P3 — Backup + log before any skill edit

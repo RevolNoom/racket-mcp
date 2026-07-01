@@ -32,7 +32,7 @@ specify extension add aide
 | `/speckit.aide.create-queue` | Generate a prioritized queue of ~10 work items |
 | `/speckit.aide.create-item` | Create a detailed work item specification from a queue item |
 | `/speckit.aide.execute-item` | Implement a work item and update progress tracking |
-| `/speckit.aide.feedback-loop` | Analyze issues and suggest process improvements |
+| `/speckit.aide.self-improve` | Analyze issues and suggest process improvements |
 
 ## Usage
 

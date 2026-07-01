@@ -1,6 +1,6 @@
 # Feedback Proposals (human review required)
 
-The feedback-loop step writes here instead of self-applying when a change would
+The self-improve step writes here instead of self-applying when a change would
 touch a Protected invariant (P1/P2) or is a control-flow / structural change
 (P5). These are NOT applied automatically. Review, then apply by hand or tell
 feedback to proceed.

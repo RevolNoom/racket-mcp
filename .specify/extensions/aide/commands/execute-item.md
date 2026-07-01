@@ -53,7 +53,7 @@ If `$ARGUMENTS` is empty, automatically pick the next item:
 
 If you encounter problems (unclear requirements, blocked, need help):
 - Document the issue in the work item
-- Tell the user to run `/speckit.aide.feedback-loop` to adjust the process
+- Tell the user to run `/speckit.aide.self-improve` to adjust the process
 
 ## Next Step
 

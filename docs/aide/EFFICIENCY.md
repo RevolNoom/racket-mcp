@@ -21,7 +21,14 @@ cold-start. The fixes below remove those multipliers.
 
 ## R2 — Item-spec size budget
 
-- Target **≤ 400 lines / ~40 KB** per `docs/aide/items/NNN-*.md`.
+- **≤ ~40 KB is the binding budget** per `docs/aide/items/NNN-*.md` — KB tracks
+  the actual reading cost. **≤ 400 lines** is a secondary guide, not a target to
+  hit on its own: a spec that meets the line count by packing prose into long,
+  dense lines has not been trimmed, it has been reflowed. (A queue-001→002
+  retrospective found exactly this — lines fell ~970→450 while KB held ~74 KB
+  because bytes-per-line doubled.) If a spec runs **> ~120 bytes/line**
+  (`wc -c` ÷ `wc -l`), that is the tell: prose is dense, not lean — cut content,
+  don't reflow.
 - Reference existing code by `path:line` instead of pasting large code blocks
   into the spec.
 - Heavy boilerplate (Manual Validation Checklist, Validation Documentation
@@ -53,9 +60,24 @@ cold-start. The fixes below remove those multipliers.
   in the item file's "Decisions & Trade-offs" section.
 - The lead updates only the status cell(s) for its own item number.
 
+## R6 — Reuse harvested scripts; don't re-derive recurring commands
+
+- Before running a build/test/validate command, check `docs/aide/scripts/` for
+  a script that already does it. Prefer the script — it ran the same way on
+  prior items, so reusing it keeps behavior consistent and saves the worker
+  from re-deriving flags/paths from scratch each time.
+- The worker logs each non-trivial command it runs to the command ledger via
+  `.claude/skills/speckit.aide.self-improve/scripts/log-command.sh <item> <cmd>`.
+  This is one cheap appended line; it's what lets the self-improve step see which
+  commands recur across items.
+- The self-improve step owns harvesting: when a command recurs across ≥2 items
+  (detected by `tally-commands.sh`) it writes a reusable script into
+  `docs/aide/scripts/` (`harvest-script.sh`) and wires the relevant skills to
+  call it. Workers do not invent these scripts themselves.
+
 ## How skills reference this
 
 Each AIDE skill links here instead of restating the rules. Workers/reviewers
-are told their size/handoff budget in the spawn prompt. The feedback-loop step
-audits adherence to R1–R5 and may tighten these rules over time (it edits this
+are told their size/handoff budget in the spawn prompt. The self-improve step
+audits adherence to R1–R6 and may tighten these rules over time (it edits this
 file and logs the change in `docs/aide/feedback/changelog.md`).
